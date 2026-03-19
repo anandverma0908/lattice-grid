@@ -21,6 +21,7 @@ export { useColumnFilter }    from './hooks/useColumnFilter';
 export { useGridKeyboard }    from './hooks/useGridKeyboard';
 export { useGridPagination }  from './hooks/useGridPagination';
 export { useGridExport }      from './hooks/useGridExport';
+export { useColumnManager }   from './hooks/useColumnManager';
 
 // Context (for custom slot components that need engine access)
 export { useGridContext }     from './core/GridContext';
@@ -64,6 +65,7 @@ export type { UseGridKeyboardOptions, UseGridKeyboardReturn,
               FocusedCell }                                              from './hooks/useGridKeyboard';
 export type { UseGridPaginationOptions, UseGridPaginationReturn }        from './hooks/useGridPagination';
 export type { UseGridExportOptions, UseGridExportReturn }                from './hooks/useGridExport';
+export type { UseColumnManagerReturn, ColumnManagerPanelProps }           from './hooks/useColumnManager';
 
 // Type guard
 export { isGroupColumn } from './types';

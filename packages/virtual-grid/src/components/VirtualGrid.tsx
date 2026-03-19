@@ -85,7 +85,8 @@ function VirtualGridInner<TData = unknown>({
   columns,
   data,
   getRowId,
-  height            = DEFAULT_HEIGHT,
+  height,
+  maxHeight         = 600,
   rowHeight         = DEFAULT_ROW_HEIGHT,
   headerHeight      = DEFAULT_HDR_HEIGHT,
   groupHeaderHeight = DEFAULT_GRP_HEIGHT,
@@ -104,7 +105,7 @@ function VirtualGridInner<TData = unknown>({
   ariaLabel         = 'Data grid',
   className,
   style,
-}: VirtualGridProps<TData>) {
+}: VirtualGridProps<TData> & { maxHeight?: number }) {
 
   // ── Resolved customisation objects ───────────────────────────────────────────
   const features:   Required<GridFeatures> = useMemo(
@@ -211,6 +212,13 @@ function VirtualGridInner<TData = unknown>({
 
   // ── Geometry ─────────────────────────────────────────────────────────────────
   const totalHeaderHeight = hasGroups ? groupHeaderHeight + headerHeight : headerHeight;
+
+  // When height is not provided, compute content height and cap at maxHeight.
+  // Content height = header + all rows + toolbar + footer (estimated).
+  const toolbarH = features.toolbar ? 36 : 0;
+  const footerH  = features.footer  ? 29 : 0;
+  const contentH = totalHeaderHeight + sortedData.length * rowHeight + toolbarH + footerH;
+  const effectiveHeight = height ?? Math.min(contentH, maxHeight);
   const scrollViewWidth   = Math.max(0, bodyWrapW - pinnedLeftWidth - pinnedRightWidth);
   const canvasW           = pinnedLeftWidth + totalScrollW + pinnedRightWidth;
 
@@ -573,7 +581,17 @@ function VirtualGridInner<TData = unknown>({
         position: 'absolute', [side]: 0, top: 0,
         width: layerWidth, height: '100%', zIndex: 20, pointerEvents: 'none',
       }}>
-        <div style={{ position: 'relative', width: layerWidth, height: '100%', pointerEvents: 'auto' }}>
+        <div
+          style={{ position: 'relative', width: layerWidth, height: '100%', pointerEvents: 'auto' }}
+          onWheel={e => {
+            // Forward wheel events to the scroll area so vertical scroll
+            // works when the pointer is over a pinned column.
+            const el = scrollAreaRef.current;
+            if (!el) return;
+            el.scrollTop  += e.deltaY;
+            el.scrollLeft += e.deltaX;
+          }}
+        >
           <div style={{
             position: 'absolute', top: 0, left: 0,
             width: layerWidth, height: totalHeaderHeight,
@@ -667,7 +685,7 @@ function VirtualGridInner<TData = unknown>({
           overflow:      'hidden',
           display:       'flex',
           flexDirection: 'column',
-          height,
+          height: effectiveHeight,
           position:      'relative',
           ...styles.root,
           ...style,

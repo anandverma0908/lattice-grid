@@ -303,7 +303,10 @@ export interface VirtualGridProps<TData = unknown> {
   getRowId?: (row: TData, index: number) => string | number;
 
   // ── Layout ────────────────────────────────────────────────────────────────
+  /** Fixed height in px. If omitted, grid sizes to content up to maxHeight. */
   height?:            number;
+  /** Maximum height in px when no fixed height is set. Defaults to 600. */
+  maxHeight?:         number;
   rowHeight?:         number;
   headerHeight?:      number;
   groupHeaderHeight?: number;
