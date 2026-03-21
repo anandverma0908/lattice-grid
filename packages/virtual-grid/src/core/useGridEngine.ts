@@ -255,7 +255,7 @@ export function useGridEngine<TData>(
       const record = state.colMap[id];
       if (!leaf || !record) return [];
 
-      const resolved: ResolvedColumn<TData> = {
+      const resolved = {
         id: leaf.id,
         label: leaf.label,
         field: leaf.field,
@@ -268,6 +268,7 @@ export function useGridEngine<TData>(
         sortable: leaf.sortable ?? true,
         resizable: leaf.resizable ?? true,
         draggable: leaf.draggable ?? true,
+        hideable: leaf.hideable ?? true,
         groupId: leaf.groupId,
         defIndex: leaf.defIndex,
         width: record.width,
@@ -275,7 +276,7 @@ export function useGridEngine<TData>(
         maxWidth: record.maxWidth,
         pinned: record.pinned,
         hidden: record.hidden,
-      };
+      } as ResolvedColumn<TData>;
       return [resolved];
     });
   }, [state.colOrder, state.colMap, leaves]);

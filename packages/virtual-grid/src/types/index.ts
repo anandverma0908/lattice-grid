@@ -2,49 +2,49 @@
 //  @virtual-grid/core — Public Type Definitions  (v2.0)
 // =============================================================================
 
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  PRIMITIVES
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type PinSide      = 'left' | 'right';
-export type SortDirection = 'asc' | 'desc';
+export type PinSide = "left" | "right";
+export type SortDirection = "asc" | "desc";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  COLUMN DEFINITIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface LeafColumnDef<TData = unknown> {
-  id:        string;
-  label:     string;
-  field?:    keyof TData & string;
+  id: string;
+  label: string;
+  field?: keyof TData & string;
   accessor?: (row: TData) => unknown;
-  width?:    number;
+  width?: number;
   minWidth?: number;
   maxWidth?: number;
-  pinned?:   PinSide;
-  hidden?:   boolean;
+  pinned?: PinSide;
+  hidden?: boolean;
 
   // Feature toggles — override grid-level GridFeatures per column
-  sortable?:   boolean;
-  resizable?:  boolean;
-  draggable?:  boolean;
+  sortable?: boolean;
+  resizable?: boolean;
+  draggable?: boolean;
   /** Set false to hide the hide-button on this column's header. */
-  hideable?:   boolean;
+  hideable?: boolean;
 
-  renderCell?:   (value: unknown, row: TData) => ReactNode;
+  renderCell?: (value: unknown, row: TData) => ReactNode;
   renderHeader?: (col: ResolvedColumn<TData>) => ReactNode;
 
-  align?:       'left' | 'center' | 'right';
-  cellStyle?:   CSSProperties;
+  align?: "left" | "center" | "right";
+  cellStyle?: CSSProperties;
   headerStyle?: CSSProperties;
 }
 
-export interface GroupColumnDef<TData = unknown> {
-  id:           string;
-  label:        string;
-  children:     Array<LeafColumnDef<TData>>;
+export interface GroupColumnDef<TData = any> {
+  id: string;
+  label: string;
+  children: Array<LeafColumnDef<TData>>;
   headerStyle?: CSSProperties;
 }
 
@@ -55,33 +55,33 @@ export type ColumnDef<TData = unknown> =
 export function isGroupColumn<TData>(
   col: ColumnDef<TData>,
 ): col is GroupColumnDef<TData> {
-  return 'children' in col && Array.isArray(col.children);
+  return "children" in col && Array.isArray(col.children);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  RESOLVED COLUMN  (engine output — passed to renderers)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface ResolvedColumn<TData = unknown> {
-  id:       string;
-  label:    string;
-  field?:   keyof TData & string;
+export interface ResolvedColumn<TData = any> {
+  id: string;
+  label: string;
+  field?: keyof TData & string;
   accessor?: (row: TData) => unknown;
-  renderCell?:   LeafColumnDef<TData>['renderCell'];
-  renderHeader?: LeafColumnDef<TData>['renderHeader'];
-  cellStyle?:    CSSProperties;
-  headerStyle?:  CSSProperties;
-  align:    'left' | 'center' | 'right';
-  sortable:   boolean;
-  resizable:  boolean;
-  draggable:  boolean;
-  hideable:   boolean;
-  width:    number;
+  renderCell?: LeafColumnDef<TData>["renderCell"];
+  renderHeader?: LeafColumnDef<TData>["renderHeader"];
+  cellStyle?: CSSProperties;
+  headerStyle?: CSSProperties;
+  align: "left" | "center" | "right";
+  sortable: boolean;
+  resizable: boolean;
+  draggable: boolean;
+  hideable: boolean;
+  width: number;
   minWidth: number;
   maxWidth: number;
-  pinned:   PinSide | null;
-  hidden:   boolean;
-  groupId:  string | null;
+  pinned: PinSide | null;
+  hidden: boolean;
+  groupId: string | null;
   defIndex: number;
 }
 
@@ -90,7 +90,7 @@ export interface ResolvedColumn<TData = unknown> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SortState {
-  columnId:  string | null;
+  columnId: string | null;
   direction: SortDirection;
 }
 
@@ -99,57 +99,57 @@ export interface SortState {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridEngineState<TData = unknown> {
-  orderedColumns:     ResolvedColumn<TData>[];
-  visibleColumns:     ResolvedColumn<TData>[];
-  pinnedLeftColumns:  ResolvedColumn<TData>[];
+  orderedColumns: ResolvedColumn<TData>[];
+  visibleColumns: ResolvedColumn<TData>[];
+  pinnedLeftColumns: ResolvedColumn<TData>[];
   pinnedRightColumns: ResolvedColumn<TData>[];
-  scrollableColumns:  ResolvedColumn<TData>[];
-  pinnedLeftWidth:    number;
-  pinnedRightWidth:   number;
-  scrollableWidth:    number;
-  sortState:          SortState;
-  groups:             GroupColumnDef<TData>[];
-  hasGroups:          boolean;
+  scrollableColumns: ResolvedColumn<TData>[];
+  pinnedLeftWidth: number;
+  pinnedRightWidth: number;
+  scrollableWidth: number;
+  sortState: SortState;
+  groups: GroupColumnDef<TData>[];
+  hasGroups: boolean;
 }
 
 export interface GridEngineActions {
-  resizeColumn:           (columnId: string, delta: number) => void;
-  setColumnWidth:         (columnId: string, width: number) => void;
-  pinColumn:              (columnId: string, side: PinSide | null) => void;
+  resizeColumn: (columnId: string, delta: number) => void;
+  setColumnWidth: (columnId: string, width: number) => void;
+  pinColumn: (columnId: string, side: PinSide | null) => void;
   toggleColumnVisibility: (columnId: string) => void;
-  showAllColumns:         () => void;
-  moveColumnBefore:       (sourceId: string, targetId: string) => void;
-  toggleSort:             (columnId: string) => void;
-  resetColumns:           () => void;
+  showAllColumns: () => void;
+  moveColumnBefore: (sourceId: string, targetId: string) => void;
+  toggleSort: (columnId: string) => void;
+  resetColumns: () => void;
 }
 
-export type GridEngine<TData = unknown> =
-  GridEngineState<TData> & GridEngineActions;
+export type GridEngine<TData = unknown> = GridEngineState<TData> &
+  GridEngineActions;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  VIRTUALISER OUTPUTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface VirtualRowWindow {
-  startIndex:  number;
-  endIndex:    number;
+  startIndex: number;
+  endIndex: number;
   totalHeight: number;
-  offsetY:     number;
+  offsetY: number;
 }
 
 export interface VirtualColWindow {
   startIndex: number;
-  endIndex:   number;
+  endIndex: number;
   totalWidth: number;
-  offsets:    number[];
+  offsets: number[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  THEMING
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type GridTokens   = Partial<Record<`--vg-${string}`, string>>;
-export type ThemePreset  = 'light' | 'dark' | 'ocean' | 'forest' | 'sunset';
+export type GridTokens = Partial<Record<`--vg-${string}`, string>>;
+export type ThemePreset = "light" | "dark" | "ocean" | "forest" | "sunset";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  FEATURE FLAGS
@@ -184,16 +184,16 @@ export interface GridFeatures {
 
 export interface GridIcons {
   /** Icon shown on sortable column headers (replaces both asc+desc indicators). */
-  sortAsc?:       ReactNode;
-  sortDesc?:      ReactNode;
+  sortAsc?: ReactNode;
+  sortDesc?: ReactNode;
   /** Icon shown in the header when no sort is active. */
-  sortNone?:      ReactNode;
+  sortNone?: ReactNode;
   /** Icon for the hide-column button in the header. */
-  hideColumn?:    ReactNode;
+  hideColumn?: ReactNode;
   /** Icon for the "Columns" toolbar button. */
-  columnsPanel?:  ReactNode;
+  columnsPanel?: ReactNode;
   /** Icon shown on draggable column headers (drag handle). */
-  dragHandle?:    ReactNode;
+  dragHandle?: ReactNode;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -202,18 +202,20 @@ export interface GridIcons {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridClassNames {
-  root?:         string;
-  toolbar?:      string;
-  headerRow?:    string;
-  groupRow?:     string;
-  headerCell?:   string;
-  row?:          string;
-  rowSelected?:  string;
-  rowHovered?:   string;
-  cell?:         string;
-  pinnedCell?:   string;
-  footer?:       string;
-  columnPanel?:  string;
+  root?: string;
+  toolbar?: string;
+  headerRow?: string;
+  groupRow?: string;
+  headerCell?: string;
+  row?: string;
+  rowSelected?: string;
+  rowHovered?: string;
+  cell?: string;
+  pinnedCell?: string;
+  footer?: string;
+  columnPanel?: string;
+  pinnedHeaderCell?: string;
+  groupHeaderCell?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -223,16 +225,18 @@ export interface GridClassNames {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridStyles {
-  root?:        CSSProperties;
-  toolbar?:     CSSProperties;
-  headerRow?:   CSSProperties;
-  groupRow?:    CSSProperties;
-  headerCell?:  CSSProperties;
-  row?:         CSSProperties;
+  root?: CSSProperties;
+  toolbar?: CSSProperties;
+  headerRow?: CSSProperties;
+  groupRow?: CSSProperties;
+  headerCell?: CSSProperties;
+  row?: CSSProperties;
   rowSelected?: CSSProperties;
-  cell?:        CSSProperties;
-  pinnedCell?:  CSSProperties;
-  footer?:      CSSProperties;
+  cell?: CSSProperties;
+  pinnedCell?: CSSProperties;
+  footer?: CSSProperties;
+  pinnedHeaderCell?: CSSProperties;
+  groupHeaderCell?: CSSProperties;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -259,7 +263,7 @@ export interface GridSlots<TData = unknown> {
    * Replace the left section of the built-in toolbar.
    * (toolbarLeft / toolbarRight from v1 — kept for convenience)
    */
-  toolbarLeft?:  ReactNode;
+  toolbarLeft?: ReactNode;
   toolbarRight?: ReactNode;
 
   /**
@@ -274,11 +278,11 @@ export interface GridSlots<TData = unknown> {
    * Receives virtualisation state for custom range display.
    */
   footer?: (props: {
-    startRow:    number;
-    endRow:      number;
-    totalRows:   number;
+    startRow: number;
+    endRow: number;
+    totalRows: number;
     visibleCols: number;
-    totalCols:   number;
+    totalCols: number;
   }) => ReactNode;
 
   /**
@@ -298,17 +302,17 @@ export interface GridSlots<TData = unknown> {
 
 export interface VirtualGridProps<TData = unknown> {
   // ── Data ──────────────────────────────────────────────────────────────────
-  columns:   ColumnDef<TData>[];
-  data:      TData[];
+  columns: ColumnDef<TData>[];
+  data: TData[];
   getRowId?: (row: TData, index: number) => string | number;
 
   // ── Layout ────────────────────────────────────────────────────────────────
   /** Fixed height in px. If omitted, grid sizes to content up to maxHeight. */
-  height?:            number;
+  height?: number;
   /** Maximum height in px when no fixed height is set. Defaults to 600. */
-  maxHeight?:         number;
-  rowHeight?:         number;
-  headerHeight?:      number;
+  maxHeight?: number;
+  rowHeight?: number;
+  headerHeight?: number;
   groupHeaderHeight?: number;
 
   // ── Theme & tokens ────────────────────────────────────────────────────────
@@ -345,9 +349,9 @@ export interface VirtualGridProps<TData = unknown> {
   loading?: boolean;
 
   // ── Events ────────────────────────────────────────────────────────────────
-  onRowClick?:      (row: TData, index: number) => void;
-  onSortChange?:    (sort: SortState) => void;
-  onColumnResize?:  (columnId: string, width: number) => void;
+  onRowClick?: (row: TData, index: number) => void;
+  onSortChange?: (sort: SortState) => void;
+  onColumnResize?: (columnId: string, width: number) => void;
   onColumnReorder?: (newOrder: string[]) => void;
 
   // ── Accessibility ─────────────────────────────────────────────────────────
@@ -355,5 +359,5 @@ export interface VirtualGridProps<TData = unknown> {
 
   // ── DOM ───────────────────────────────────────────────────────────────────
   className?: string;
-  style?:     CSSProperties;
+  style?: CSSProperties;
 }

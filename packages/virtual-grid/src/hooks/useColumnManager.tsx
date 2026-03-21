@@ -67,7 +67,7 @@ import type { GridEngine } from '../types';
 
 interface BuiltInPanelProps<TData> {
   engine: GridEngine<TData>;
-  onClose?: () => void;
+  onClose?: (() => void) | undefined;
 }
 
 function BuiltInPanel<TData>({ engine, onClose }: BuiltInPanelProps<TData>) {
