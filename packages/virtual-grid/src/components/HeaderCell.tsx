@@ -1,5 +1,8 @@
 // =============================================================================
-//  @virtual-grid/core — HeaderCell
+//  @virtual-grid/core — HeaderCell  v2.1
+//
+//  FIX 3: renderHeader now receives (column, engine) as second argument.
+//  Custom headers can show sort state, fire actions, render filter inputs, etc.
 // =============================================================================
 
 import React, { memo, useState, type CSSProperties } from "react";
@@ -10,21 +13,10 @@ interface HeaderCellProps {
   column: ResolvedColumn;
   style: CSSProperties;
   showResizeHandle?: boolean;
-  /**
-   * Pass true on the first cell in a row/group so it gets borderLeft.
-   * All cells always get borderRight.
-   * Middle cells only have borderRight — the previous cell's borderRight
-   * acts as their left border, so borders never stack and look thick.
-   */
   isFirst?: boolean;
-  /**
-   * Pass true on the last cell in a row/group.
-   * Currently reserved for future use (e.g. suppress borderRight on last).
-   */
   isLast?: boolean;
 }
 
-// ── Default sort indicator ─────────────────────────────────────────────────────
 function DefaultSortIcon({
   direction,
   active,
@@ -63,7 +55,6 @@ function DefaultSortIcon({
   );
 }
 
-// ── Default hide icon ──────────────────────────────────────────────────────────
 function DefaultHideIcon() {
   return (
     <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -77,7 +68,6 @@ function DefaultHideIcon() {
   );
 }
 
-// ── HeaderCell ─────────────────────────────────────────────────────────────────
 export const HeaderCell = memo(function HeaderCell({
   column,
   style,
@@ -132,11 +122,6 @@ export const HeaderCell = memo(function HeaderCell({
       ? "var(--vg-bg-row-hover)"
       : "var(--vg-bg-header)";
 
-  // ── Border logic ────────────────────────────────────────────────────────────
-  // Rule: every cell has borderRight. Only the first cell in a group/row
-  // also gets borderLeft. This way adjacent cells share one border line —
-  // the right border of cell N acts as the left border of cell N+1.
-  // Result: no doubled/thick borders anywhere.
   const borderLeft = isFirst ? "1px solid var(--vg-border)" : undefined;
   const borderRight = "1px solid var(--vg-border)";
 
@@ -150,7 +135,7 @@ export const HeaderCell = memo(function HeaderCell({
             : "descending"
           : "none"
       }
-      className={classNames.headerCell || undefined}
+      className={classNames.headerCell ?? undefined}
       {...dragProps}
       onClick={handleClick}
       onMouseEnter={() => setHovered(true)}
@@ -164,10 +149,10 @@ export const HeaderCell = memo(function HeaderCell({
         fontWeight: 600,
         fontSize: "var(--vg-font-size)",
         color: "var(--vg-text-header)",
-        borderBottom: '1px solid var(--vg-border)',
         background: bg,
         borderLeft,
         borderRight,
+        borderBottom: "1px solid var(--vg-border)",
         cursor: canSort ? "pointer" : canDrag ? "grab" : "default",
         userSelect: "none",
         opacity: isDragging ? 0.45 : 1,
@@ -181,104 +166,86 @@ export const HeaderCell = memo(function HeaderCell({
         ...(column.groupId ? styles.groupHeaderCell : {}),
       }}
     >
-      {/* Header Container */}
+      {/* Label — FIX 3: renderHeader receives (column, engine) */}
       <span
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent:
-            column.align === "right"
-              ? "flex-end"
-              : column.align === "center"
-                ? "center"
-                : "flex-start",
-          width: "100%",
+          flex: 1,
           overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          textAlign: column.align,
         }}
       >
-        {/* Label */}
-        <span
-          style={{
-            // flex: 1,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {column.renderHeader ? column.renderHeader(column) : column.label}
-        </span>
-
-        {/* Actions (Sort + Hide) */}
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.4rem",
-            marginLeft: 6,
-            flexShrink: 0,
-          }}
-        >
-          {/* Sort indicator */}
-          {canSort &&
-            (() => {
-              if (isSorted) {
-                const customIcon =
-                  sortState.direction === "asc"
-                    ? icons.sortAsc
-                    : icons.sortDesc;
-
-                if (customIcon) return <span>{customIcon}</span>;
-              } else if (icons.sortNone) {
-                return <span style={{ opacity: 0.3 }}>{icons.sortNone}</span>;
-              }
-
-              return (
-                <DefaultSortIcon
-                  direction={sortState.direction}
-                  active={isSorted}
-                />
-              );
-            })()}
-
-          {/* Hide button */}
-          {canHide && (
-            <span
-              data-vg-hide
-              role="button"
-              aria-label="Hide column"
-              title="Hide column"
-              onClick={handleHide}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 14,
-                height: 14,
-                borderRadius: 3,
-                cursor: "pointer",
-                opacity: hovered ? 0.7 : 0,
-                pointerEvents: hovered ? "auto" : "none",
-                background: "transparent",
-                color: "var(--vg-text-dim)",
-                transition: "opacity 0.12s, background 0.12s",
-                userSelect: "none",
-              }}
-              onMouseEnter={(e) => {
-                const el = e.currentTarget;
-                el.style.opacity = "1";
-                el.style.background = "var(--vg-border-strong)";
-              }}
-              onMouseLeave={(e) => {
-                const el = e.currentTarget;
-                el.style.opacity = hovered ? "0.7" : "0";
-                el.style.background = "transparent";
-              }}
-            >
-              {icons.hideColumn ?? <DefaultHideIcon />}
-            </span>
-          )}
-        </span>
+        {column.renderHeader
+          ? column.renderHeader(column, engine)
+          : column.label}
       </span>
+
+      {/* Sort indicator */}
+      {canSort &&
+        (() => {
+          if (isSorted) {
+            const icon =
+              sortState.direction === "asc" ? icons.sortAsc : icons.sortDesc;
+            if (icon)
+              return (
+                <span style={{ marginLeft: 3, flexShrink: 0 }}>{icon}</span>
+              );
+          } else if (icons.sortNone) {
+            return (
+              <span style={{ marginLeft: 3, flexShrink: 0, opacity: 0.3 }}>
+                {icons.sortNone}
+              </span>
+            );
+          }
+          return (
+            <DefaultSortIcon
+              direction={sortState.direction}
+              active={isSorted}
+            />
+          );
+        })()}
+
+      {/* Hide button */}
+      {canHide && (
+        <span
+          data-vg-hide=""
+          role="button"
+          aria-label="Hide column"
+          title="Hide column"
+          onClick={handleHide}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 14,
+            height: 14,
+            borderRadius: 3,
+            marginLeft: 3,
+            flexShrink: 0,
+            cursor: "pointer",
+            opacity: hovered ? 0.7 : 0,
+            pointerEvents: hovered ? "auto" : "none",
+            background: "transparent",
+            color: "var(--vg-text-dim)",
+            transition: "opacity 0.12s",
+            userSelect: "none",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.opacity = "1";
+            (e.currentTarget as HTMLElement).style.background =
+              "var(--vg-border-strong)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.opacity = hovered
+              ? "0.7"
+              : "0";
+            (e.currentTarget as HTMLElement).style.background = "transparent";
+          }}
+        >
+          {icons.hideColumn ?? <DefaultHideIcon />}
+        </span>
+      )}
 
       {/* Resize handle */}
       {showResizeHandle && canResize && (
@@ -288,13 +255,12 @@ export const HeaderCell = memo(function HeaderCell({
           style={{
             position: "absolute",
             right: 0,
-            top: "35%",
-            bottom: "50%",
-            width: 2,
-            height: "30%",
+            top: "20%",
+            width: 4,
+            height: "60%",
             borderRadius: 2,
             cursor: "col-resize",
-            background: "var(--vg-border)",
+            background: "transparent",
             zIndex: 2,
             transition: "background var(--vg-transition)",
           }}
@@ -303,8 +269,7 @@ export const HeaderCell = memo(function HeaderCell({
               "var(--vg-resize-hover)")
           }
           onMouseLeave={(e) =>
-            ((e.currentTarget as HTMLElement).style.background =
-              "var(--vg-border)")
+            ((e.currentTarget as HTMLElement).style.background = "transparent")
           }
         />
       )}

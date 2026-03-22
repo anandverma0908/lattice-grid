@@ -1,15 +1,23 @@
 // =============================================================================
-//  @virtual-grid/core — Public Type Definitions  (v2.0)
+//  @virtual-grid/core — Public Type Definitions  (v2.1)
 // =============================================================================
 
 import type { CSSProperties, ReactNode } from "react";
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PRIMITIVES
-// ─────────────────────────────────────────────────────────────────────────────
-
 export type PinSide = "left" | "right";
 export type SortDirection = "asc" | "desc";
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COLUMN STATE  (serialisable — use with onColumnStateChange / initialColumnState)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ColumnState {
+  id: string;
+  hidden: boolean;
+  pinned: PinSide | null;
+  width: number;
+  order: number;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  COLUMN DEFINITIONS
@@ -25,17 +33,18 @@ export interface LeafColumnDef<TData = unknown> {
   maxWidth?: number;
   pinned?: PinSide;
   hidden?: boolean;
-
-  // Feature toggles — override grid-level GridFeatures per column
   sortable?: boolean;
   resizable?: boolean;
   draggable?: boolean;
-  /** Set false to hide the hide-button on this column's header. */
   hideable?: boolean;
-
+  stock?:string;
+  // FIX 3: renderHeader now receives (col, engine) as second arg so custom
+  // headers can access sort state, fire actions, render filter inputs, etc.
+  renderHeader?: (
+    col: ResolvedColumn<TData>,
+    engine?: GridEngine<TData>,
+  ) => ReactNode;
   renderCell?: (value: unknown, row: TData) => ReactNode;
-  renderHeader?: (col: ResolvedColumn<TData>) => ReactNode;
-
   align?: "left" | "center" | "right";
   cellStyle?: CSSProperties;
   headerStyle?: CSSProperties;
@@ -55,11 +64,13 @@ export type ColumnDef<TData = unknown> =
 export function isGroupColumn<TData>(
   col: ColumnDef<TData>,
 ): col is GroupColumnDef<TData> {
-  return "children" in col && Array.isArray(col.children);
+  return (
+    "children" in col && Array.isArray((col as GroupColumnDef<TData>).children)
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  RESOLVED COLUMN  (engine output — passed to renderers)
+//  RESOLVED COLUMN
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ResolvedColumn<TData = any> {
@@ -127,7 +138,7 @@ export type GridEngine<TData = unknown> = GridEngineState<TData> &
   GridEngineActions;
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  VIRTUALISER OUTPUTS
+//  VIRTUALISER
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface VirtualRowWindow {
@@ -153,52 +164,35 @@ export type ThemePreset = "light" | "dark" | "ocean" | "forest" | "sunset";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  FEATURE FLAGS
-//  Turn individual features on/off. All default to true unless noted.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridFeatures {
-  /** Column sorting on header click. Default: true */
   sort?: boolean;
-  /** Column resize via drag handle. Default: true */
   resize?: boolean;
-  /** Column drag-to-reorder. Default: true */
   reorder?: boolean;
-  /** Hide-column button on header hover. Default: true */
   columnHide?: boolean;
-  /** Pin column via column manager. Default: true */
   columnPin?: boolean;
-  /** Zebra-stripe alternating rows. Default: true */
   alternateRows?: boolean;
-  /** Show the built-in toolbar. Default: true */
   toolbar?: boolean;
-  /** Show the built-in footer. Default: true */
   footer?: boolean;
-  /** Row highlight on click. Default: true */
   rowSelection?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ICONS
-//  Swap any built-in SVG icon with your own ReactNode.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridIcons {
-  /** Icon shown on sortable column headers (replaces both asc+desc indicators). */
   sortAsc?: ReactNode;
   sortDesc?: ReactNode;
-  /** Icon shown in the header when no sort is active. */
   sortNone?: ReactNode;
-  /** Icon for the hide-column button in the header. */
   hideColumn?: ReactNode;
-  /** Icon for the "Columns" toolbar button. */
   columnsPanel?: ReactNode;
-  /** Icon shown on draggable column headers (drag handle). */
   dragHandle?: ReactNode;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CLASSNAMES
-//  Apply your own CSS classes to grid regions.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridClassNames {
@@ -207,6 +201,7 @@ export interface GridClassNames {
   headerRow?: string;
   groupRow?: string;
   headerCell?: string;
+  groupHeaderCell?: string;
   row?: string;
   rowSelected?: string;
   rowHovered?: string;
@@ -214,14 +209,10 @@ export interface GridClassNames {
   pinnedCell?: string;
   footer?: string;
   columnPanel?: string;
-  pinnedHeaderCell?: string;
-  groupHeaderCell?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  STYLE OVERRIDES
-//  Inline CSSProperties applied to grid regions on top of token styles.
-//  For structural overrides beyond what tokens offer.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridStyles {
@@ -230,20 +221,16 @@ export interface GridStyles {
   headerRow?: CSSProperties;
   groupRow?: CSSProperties;
   headerCell?: CSSProperties;
+  groupHeaderCell?: CSSProperties;
   row?: CSSProperties;
   rowSelected?: CSSProperties;
   cell?: CSSProperties;
   pinnedCell?: CSSProperties;
   footer?: CSSProperties;
-  pinnedHeaderCell?: CSSProperties;
-  groupHeaderCell?: CSSProperties;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  SLOTS
-//  Render-prop replacements for entire UI regions.
-//  Return null to suppress a region entirely.
-//  Receive the grid engine so slots can be interactive.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface ColumnManagerRenderProps<TData = unknown> {
@@ -252,31 +239,10 @@ export interface ColumnManagerRenderProps<TData = unknown> {
 }
 
 export interface GridSlots<TData = unknown> {
-  /**
-   * Completely replace the toolbar.
-   * Receives the engine so you can wire your own buttons.
-   * Return null to hide the toolbar.
-   */
   toolbar?: (engine: GridEngine<TData>) => ReactNode;
-
-  /**
-   * Replace the left section of the built-in toolbar.
-   * (toolbarLeft / toolbarRight from v1 — kept for convenience)
-   */
   toolbarLeft?: ReactNode;
   toolbarRight?: ReactNode;
-
-  /**
-   * Completely replace the column manager panel.
-   * The panel is opened/closed by the built-in toolbar button.
-   * Receives engine + onClose callback.
-   */
   columnManager?: (props: ColumnManagerRenderProps<TData>) => ReactNode;
-
-  /**
-   * Replace the built-in footer.
-   * Receives virtualisation state for custom range display.
-   */
   footer?: (props: {
     startRow: number;
     endRow: number;
@@ -284,80 +250,64 @@ export interface GridSlots<TData = unknown> {
     visibleCols: number;
     totalCols: number;
   }) => ReactNode;
-
-  /**
-   * Custom empty state rendered when data is empty.
-   */
   emptyState?: ReactNode;
-
-  /**
-   * Render a custom loading overlay. Shown when `loading={true}`.
-   */
   loadingOverlay?: ReactNode;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  MAIN COMPONENT PROPS
+//  MAIN PROPS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface VirtualGridProps<TData = unknown> {
-  // ── Data ──────────────────────────────────────────────────────────────────
+  // Data
   columns: ColumnDef<TData>[];
   data: TData[];
   getRowId?: (row: TData, index: number) => string | number;
 
-  // ── Layout ────────────────────────────────────────────────────────────────
-  /** Fixed height in px. If omitted, grid sizes to content up to maxHeight. */
+  // Layout
   height?: number;
-  /** Maximum height in px when no fixed height is set. Defaults to 600. */
   maxHeight?: number;
   rowHeight?: number;
   headerHeight?: number;
   groupHeaderHeight?: number;
 
-  // ── Theme & tokens ────────────────────────────────────────────────────────
-  /**
-   * Preset name or partial/full token map.
-   * Partial maps merge on top of the 'light' preset.
-   */
+  // Theme
   theme?: ThemePreset | GridTokens;
 
-  // ── Customisation objects ─────────────────────────────────────────────────
-  /** Feature flags — turn features on/off. All default true. */
+  // Customisation
   features?: GridFeatures;
-
-  /** Swap built-in icons. */
   icons?: GridIcons;
-
-  /** Apply CSS class names to grid regions. */
   classNames?: GridClassNames;
-
-  /** Apply inline style overrides to grid regions. */
   styles?: GridStyles;
-
-  /** Render-prop slots — replace entire UI sections. */
   slots?: GridSlots<TData>;
 
-  // ── Behaviour ─────────────────────────────────────────────────────────────
-  /**
-   * Column id to auto-freeze when it scrolls behind the pinned-left band.
-   * Engine state is never mutated.
-   */
+  // Behaviour
   freezeColId?: string;
-
-  /** Show loading overlay (use slots.loadingOverlay to customise). */
   loading?: boolean;
 
-  // ── Events ────────────────────────────────────────────────────────────────
+  /**
+   * 'client' (default) — grid sorts data internally.
+   * 'server'           — grid skips internal sort; data rendered as-is.
+   *                      onSortChange fires so you can fetch the sorted page.
+   */
+  sortMode?: "client" | "server";
+
+  /**
+   * Fired whenever column visibility / pin / width / order changes.
+   * Persist this to your API and restore via initialColumnState.
+   */
+  onColumnStateChange?: (state: ColumnState[]) => void;
+
+  // Events
   onRowClick?: (row: TData, index: number) => void;
   onSortChange?: (sort: SortState) => void;
   onColumnResize?: (columnId: string, width: number) => void;
   onColumnReorder?: (newOrder: string[]) => void;
 
-  // ── Accessibility ─────────────────────────────────────────────────────────
+  // Accessibility
   ariaLabel?: string;
 
-  // ── DOM ───────────────────────────────────────────────────────────────────
+  // DOM
   className?: string;
   style?: CSSProperties;
 }

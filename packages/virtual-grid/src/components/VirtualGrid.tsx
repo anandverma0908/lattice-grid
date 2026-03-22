@@ -107,8 +107,10 @@ function VirtualGridInner<TData = unknown>({
   loading = false,
   onRowClick,
   onSortChange,
+  onColumnStateChange,
   onColumnResize,
   onColumnReorder,
+  sortMode = "client",
   ariaLabel = "Data grid",
   className,
   style,
@@ -162,6 +164,8 @@ function VirtualGridInner<TData = unknown>({
   }, [sortState.columnId]);
 
   const sortedData = useMemo((): TData[] => {
+    // FIX1: server mode — render data as-is, consumer handles sorting
+    if (sortMode === "server") return data;
     const col = colForSortRef.current;
     if (!sortState.columnId || !col) return data;
     const get =
@@ -176,7 +180,26 @@ function VirtualGridInner<TData = unknown>({
       return sortState.direction === "asc" ? cmp : -cmp;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, sortState.columnId, sortState.direction]);
+  }, [data, sortMode, sortState.columnId, sortState.direction]);
+
+  // ── Column state change notification ────────────────────────────────────────
+  // FIX1: Fires whenever columns are hidden/shown/pinned/resized/reordered.
+  // Consumer saves this to their API; restore by passing initialColumnState.
+  const prevColStateKeyRef = useRef("");
+  useEffect(() => {
+    if (!onColumnStateChange) return;
+    const snapshot = engine.orderedColumns.map((col, i) => ({
+      id: col.id,
+      hidden: col.hidden,
+      pinned: col.pinned,
+      width: col.width,
+      order: i,
+    }));
+    const key = JSON.stringify(snapshot);
+    if (key === prevColStateKeyRef.current) return;
+    prevColStateKeyRef.current = key;
+    onColumnStateChange(snapshot);
+  }, [engine.orderedColumns, onColumnStateChange]);
 
   // ── Row selection ────────────────────────────────────────────────────────────
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
@@ -209,6 +232,13 @@ function VirtualGridInner<TData = unknown>({
   const scrollTopRef = useRef(0);
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+  // FIX2: Direct DOM refs — updated synchronously in scroll handler so pinned
+  // rows move in the same frame as scrollable rows. No React state lag.
+  const pinLeftBodyRef = useRef<HTMLDivElement>(null);
+  const pinRightBodyRef = useRef<HTMLDivElement>(null);
+  // Wrapper refs for non-passive wheel listener
+  const pinLeftWrapRef = useRef<HTMLDivElement>(null);
+  const pinRightWrapRef = useRef<HTMLDivElement>(null);
 
   // ── Column geometry ───────────────────────────────────────────────────────────
   const offsets = useMemo(
@@ -264,13 +294,13 @@ function VirtualGridInner<TData = unknown>({
   const vColsRef = useRef({ startIndex: 0, endIndex: 0 });
   const recomputeVCols = useCallback(
     (rawScrollLeft: number) => {
+      // FIX4: bandScroll = how far scrolled INTO the scrollable band.
+      // Clamp to 0 — can't be negative (pinned band doesn't scroll).
       const bandScroll = Math.max(0, rawScrollLeft - pinnedLeftWidth);
-      vColsRef.current = calcColWindow(
-        offsets,
-        colWidths,
-        bandScroll,
-        scrollViewWidth,
-      );
+      // If bodyWrapW hasn't measured yet, use a large fallback so all columns
+      // render on first paint (virtualisation corrects itself after measurement).
+      const vw = scrollViewWidth > 0 ? scrollViewWidth : 1400;
+      vColsRef.current = calcColWindow(offsets, colWidths, bandScroll, vw);
     },
     [offsets, colWidths, scrollViewWidth, pinnedLeftWidth],
   );
@@ -303,6 +333,11 @@ function VirtualGridInner<TData = unknown>({
     scrollLeftRef.current = sl;
     recomputeVCols(sl);
     recomputeFrozen(sl);
+    // FIX2: Direct DOM update — bypasses React render cycle entirely.
+    // Both pinned layers and scrollable rows now move in the SAME frame.
+    const tx = `translateY(-${st}px)`;
+    if (pinLeftBodyRef.current) pinLeftBodyRef.current.style.transform = tx;
+    if (pinRightBodyRef.current) pinRightBodyRef.current.style.transform = tx;
     setScrollTop(st);
     setScrollLeft(sl);
   }, [recomputeVCols, recomputeFrozen]);
@@ -311,6 +346,31 @@ function VirtualGridInner<TData = unknown>({
     recomputeVCols(scrollLeftRef.current);
     recomputeFrozen(scrollLeftRef.current);
   }, [recomputeVCols, recomputeFrozen]);
+
+  // Non-passive wheel listener on pinned layer wrappers.
+  // React attaches all wheel listeners as passive — calling e.preventDefault()
+  // in a React onWheel handler does nothing. Without preventDefault the browser
+  // also scrolls the pinned layer's own stacking context, causing the visible
+  // content to jump twice (double-scroll). A native non-passive listener fixes it.
+  useEffect(() => {
+    const handler = (e: WheelEvent) => {
+      e.preventDefault(); // block native scroll on the pinned layer
+      const el = scrollAreaRef.current;
+      if (!el) return;
+      el.scrollTop += e.deltaY;
+      el.scrollLeft += e.deltaX;
+    };
+    const opts: AddEventListenerOptions = { passive: false };
+    const left = pinLeftWrapRef.current;
+    const right = pinRightWrapRef.current;
+    left?.addEventListener("wheel", handler, opts);
+    right?.addEventListener("wheel", handler, opts);
+    return () => {
+      left?.removeEventListener("wheel", handler, opts);
+      right?.removeEventListener("wheel", handler, opts);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const vCols = vColsRef.current;
   const frozenIdx = frozenIdxRef.current;
@@ -447,13 +507,27 @@ function VirtualGridInner<TData = unknown>({
 
   const renderScrollableLeafRow = (): React.ReactNode => {
     const cells: React.ReactNode[] = [];
+    // Track which group we last saw to detect the first leaf in each group
+    let lastGroupId: string | null = undefined as unknown as string;
+    const leafIndices: number[] = [];
     for (let ci = vCols.startIndex; ci <= vCols.endIndex; ci++) {
       const col = scrollableColumns[ci];
       if (!col || ungroupedIds.has(col.id)) continue;
+      leafIndices.push(ci);
+    }
+    leafIndices.forEach((ci, pos) => {
+      const col = scrollableColumns[ci];
+      if (!col) return;
+      // isFirst within its group = first rendered leaf of that groupId
+      const isFirstInGroup = col.groupId !== lastGroupId;
+      lastGroupId = col.groupId;
+      const isLast = pos === leafIndices.length - 1;
       cells.push(
         <HeaderCell
           key={`lh-${col.id}`}
           column={col}
+          isFirst={isFirstInGroup}
+          isLast={isLast}
           style={{
             position: "absolute",
             left: pinnedLeftWidth + (offsets[ci] ?? 0),
@@ -464,19 +538,25 @@ function VirtualGridInner<TData = unknown>({
           }}
         />,
       );
-    }
+    });
     return cells;
   };
 
   const renderScrollableFlatHeader = (): React.ReactNode => {
     const cells: React.ReactNode[] = [];
+    const indices: number[] = [];
     for (let ci = vCols.startIndex; ci <= vCols.endIndex; ci++) {
+      if (scrollableColumns[ci]) indices.push(ci);
+    }
+    indices.forEach((ci, pos) => {
       const col = scrollableColumns[ci];
-      if (!col) continue;
+      if (!col) return;
       cells.push(
         <HeaderCell
           key={`fh-${col.id}`}
           column={col}
+          isFirst={pos === 0}
+          isLast={pos === indices.length - 1}
           style={{
             position: "absolute",
             left: pinnedLeftWidth + (offsets[ci] ?? 0),
@@ -487,7 +567,7 @@ function VirtualGridInner<TData = unknown>({
           }}
         />,
       );
-    }
+    });
     return cells;
   };
 
@@ -596,14 +676,14 @@ function VirtualGridInner<TData = unknown>({
               top: 0,
               width: col.width,
               height: groupHeaderHeight + headerHeight,
-              background: "var(--vg-bg-header)",
+              background: "var(--vg-bg-group)",
               borderRight: isLeft
                 ? "1px solid var(--vg-border-strong)"
                 : undefined,
               borderLeft: !isLeft
                 ? "1px solid var(--vg-border-strong)"
                 : undefined,
-              // borderBottom: '1px solid var(--vg-border-strong)',
+              borderBottom: "1px solid var(--vg-border-strong)",
               zIndex: 2,
               boxSizing: "border-box",
               display: "flex",
@@ -614,7 +694,7 @@ function VirtualGridInner<TData = unknown>({
               color: "var(--vg-text-group)",
               overflow: "hidden",
               whiteSpace: "nowrap",
-              ...styles.pinnedHeaderCell,
+              ...styles.headerCell,
             }}
           >
             {col.label}
@@ -631,9 +711,9 @@ function VirtualGridInner<TData = unknown>({
               top: 0,
               width: frozenWidth,
               height: groupHeaderHeight + headerHeight,
-              // background: 'var(--vg-bg-frozen, var(--vg-bg-group))',
+              background: "var(--vg-bg-frozen, var(--vg-bg-group))",
               borderRight: "1px solid var(--vg-border-strong)",
-              // borderBottom: '1px solid var(--vg-border-strong)',
+              borderBottom: "1px solid var(--vg-border-strong)",
               zIndex: 2,
               boxSizing: "border-box",
               display: "flex",
@@ -644,7 +724,7 @@ function VirtualGridInner<TData = unknown>({
               color: "var(--vg-text-group)",
               overflow: "hidden",
               whiteSpace: "nowrap",
-              ...styles.pinnedHeaderCell,
+              ...styles.headerCell,
             }}
           >
             {frozenCol.label}
@@ -657,6 +737,8 @@ function VirtualGridInner<TData = unknown>({
           <HeaderCell
             key={`ph-${col.id}`}
             column={col}
+            isFirst={i === 0}
+            isLast={i === cols.length - 1}
             style={{
               position: "absolute",
               left: colLefts[i],
@@ -681,7 +763,7 @@ function VirtualGridInner<TData = unknown>({
               width: frozenWidth,
               height: headerHeight,
               zIndex: 2,
-              // background: 'var(--vg-bg-frozen, var(--vg-accent-bg))',
+              background: "var(--vg-bg-frozen, var(--vg-accent-bg))",
             }}
           />,
         );
@@ -719,7 +801,9 @@ function VirtualGridInner<TData = unknown>({
       });
 
       if (hasFrozen && frozenCol) {
-        const frozenBg = isSel ? "var(--vg-bg-row-selected)" : "";
+        const frozenBg = isSel
+          ? "var(--vg-bg-row-selected)"
+          : "var(--vg-bg-frozen, var(--vg-bg-row-alt))";
         rowCells.push(
           <DataCell
             key={`pb-frozen-${frozenCol.id}`}
@@ -787,19 +871,12 @@ function VirtualGridInner<TData = unknown>({
         }}
       >
         <div
+          ref={isLeft ? pinLeftWrapRef : pinRightWrapRef}
           style={{
             position: "relative",
             width: layerWidth,
             height: "100%",
             pointerEvents: "auto",
-          }}
-          onWheel={(e) => {
-            // Forward wheel events to the scroll area so vertical scroll
-            // works when the pointer is over a pinned column.
-            const el = scrollAreaRef.current;
-            if (!el) return;
-            el.scrollTop += e.deltaY;
-            el.scrollLeft += e.deltaX;
           }}
         >
           <div
@@ -818,6 +895,7 @@ function VirtualGridInner<TData = unknown>({
             {headerCells}
           </div>
           <div
+            ref={isLeft ? pinLeftBodyRef : pinRightBodyRef}
             style={{
               position: "absolute",
               top: totalHeaderHeight,
