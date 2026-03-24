@@ -325,6 +325,26 @@ function VirtualGridInner<TData = unknown>({
     [freezeColId, scrollableColumns, offsets, pinnedLeftWidth],
   );
 
+  // Always resolve the frozen column definition regardless of scroll state.
+  // The body is mounted permanently (visibility toggled by handleScroll) so the
+  // DOM ref is valid before the first freeze transition.
+  const frozenColDef = useMemo(
+    () =>
+      freezeColId
+        ? (scrollableColumns.find((c) => c.id === freezeColId) ?? null)
+        : null,
+    [freezeColId, scrollableColumns],
+  );
+
+  // Natural horizontal offset of the frozen column inside the scrollable band.
+  // Required so the sticky body starts at the column's real canvas position
+  // (sticky only "locks" once the column would scroll past pinnedLeftWidth).
+  const frozenColOffset = useMemo(() => {
+    if (!frozenColDef) return 0;
+    const idx = scrollableColumns.findIndex((c) => c.id === frozenColDef.id);
+    return idx >= 0 ? (offsets[idx] ?? 0) : 0;
+  }, [frozenColDef, scrollableColumns, offsets]);
+
   const handleScroll = useCallback(() => {
     const el = scrollAreaRef.current;
     if (!el) return;
@@ -334,10 +354,14 @@ function VirtualGridInner<TData = unknown>({
     scrollLeftRef.current = sl;
     recomputeVCols(sl);
     recomputeFrozen(sl);
-    // Direct DOM update — same frame as scroll event, zero React lag.
-    // This MUST run before setScrollTop so React never overwrites the transform.
-    const tx = `translateY(-${st}px)`;
-    if (pinLeftBodyRef.current) pinLeftBodyRef.current.style.transform = tx;
+    // Toggle frozen-column body visibility directly — same frame as scroll
+    // event, zero React lag. The body lives inside the scroll container so
+    // vertical scroll is handled natively; no translateY needed.
+    const isFrozen = frozenIdxRef.current !== null;
+    if (pinLeftBodyRef.current) {
+      pinLeftBodyRef.current.style.visibility = isFrozen ? "visible" : "hidden";
+      pinLeftBodyRef.current.style.pointerEvents = isFrozen ? "auto" : "none";
+    }
     setScrollTop(st);
     setScrollLeft(sl);
   }, [recomputeVCols, recomputeFrozen]);
@@ -372,25 +396,27 @@ function VirtualGridInner<TData = unknown>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync pinned body transforms after every React commit that changes scrollTop.
-  // useLayoutEffect fires after DOM mutations but before browser paint —
-  // no visible frame where pinned rows are misaligned.
-  // During live scroll, handleScroll has already set the correct value via DOM
-  // ref in the same frame, so this effect is essentially a no-op (same value).
-  // It is critical for: initial mount, sort, data change, column change.
+  // Re-sync frozen body visibility after every React commit (e.g. if React
+  // recreates the DOM node after a key change, sort, or data update).
+  // useLayoutEffect fires before the browser paints so there is never a frame
+  // where the frozen column is in the wrong visible/hidden state.
   React.useLayoutEffect(() => {
-    const tx = `translateY(-${scrollTop}px)`;
-    if (pinLeftBodyRef.current) pinLeftBodyRef.current.style.transform = tx;
+    if (!pinLeftBodyRef.current) return;
+    const isFrozen = frozenIdxRef.current !== null;
+    pinLeftBodyRef.current.style.visibility = isFrozen ? "visible" : "hidden";
+    pinLeftBodyRef.current.style.pointerEvents = isFrozen ? "auto" : "none";
   });
   // No dependency array — runs after EVERY commit. This is intentional:
   // React may have re-created the DOM node (e.g. key change) so we always
-  // need to re-apply. The cost is negligible (two style assignments).
+  // need to re-apply.
 
   const vCols = vColsRef.current;
   const frozenIdx = frozenIdxRef.current;
   const frozenCol: ResolvedColumn<TData> | null =
     frozenIdx !== null ? (scrollableColumns[frozenIdx] ?? null) : null;
-  const frozenWidth = frozenCol?.width ?? 0;
+  // frozenWidth uses frozenColDef (always-set) so the sticky body is correctly
+  // sized even when the column is not yet in frozen state.
+  const frozenWidth = frozenColDef?.width ?? 0;
 
   // ── Row virtualisation ────────────────────────────────────────────────────────
   const vRows = useVirtualRows({
@@ -819,6 +845,72 @@ function VirtualGridInner<TData = unknown>({
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  FROZEN COLUMN BODY ROWS
+  //  Rendered inside the scroll container (not the overlay) so vertical scroll
+  //  is handled natively — identical to how pinned-sticky rows work.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const renderFrozenBodyRows = (): React.ReactNode => {
+    if (!frozenColDef) return null;
+    const rows: React.ReactNode[] = [];
+    for (let ri = vRows.startIndex; ri <= vRows.endIndex; ri++) {
+      const row = sortedData[ri];
+      if (!row) continue;
+      const rowKey = getRowId ? String(getRowId(row, ri)) : String(ri);
+      const isSel = isRowSelected(row, ri);
+      const frozenBg = isSel
+        ? "var(--vg-bg-row-selected)"
+        : "var(--vg-bg-frozen, var(--vg-bg-row-alt))";
+      rows.push(
+        <div
+          key={rowKey}
+          onClick={() => handleRowClick(row, ri)}
+          className={
+            [classNames.row, isSel ? classNames.rowSelected : undefined]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+          style={{
+            position: "absolute",
+            left: 0,
+            top: ri * rowHeight,
+            width: frozenWidth,
+            height: rowHeight,
+            background: frozenBg,
+            cursor: "pointer",
+            ...styles.row,
+            ...(isSel ? styles.rowSelected : {}),
+          }}
+          onMouseEnter={(e) => {
+            if (!isSel)
+              (e.currentTarget as HTMLElement).style.background =
+                "var(--vg-bg-row-hover)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = frozenBg;
+          }}
+        >
+          <DataCell
+            column={frozenColDef}
+            row={row}
+            pinned
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: frozenWidth,
+              height: rowHeight,
+              background: frozenBg,
+              zIndex: 2,
+            }}
+          />
+        </div>,
+      );
+    }
+    return rows;
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  PINNED COLUMN OVERLAY
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -978,66 +1070,6 @@ function VirtualGridInner<TData = unknown>({
       }
     }
 
-    // Body — only the frozen column (regular pinned body rows are rendered as
-    // CSS sticky elements inside the scroll container — no JS sync needed).
-    const frozenBodyRows: React.ReactNode[] = [];
-    if (hasFrozen && frozenCol) {
-      for (let ri = vRows.startIndex; ri <= vRows.endIndex; ri++) {
-        const row = sortedData[ri];
-        if (!row) continue;
-        const rowKey = getRowId ? String(getRowId(row, ri)) : String(ri);
-        const isSel = isRowSelected(row, ri);
-        const frozenBg = isSel
-          ? "var(--vg-bg-row-selected)"
-          : "var(--vg-bg-frozen, var(--vg-bg-row-alt))";
-        frozenBodyRows.push(
-          <div
-            key={rowKey}
-            onClick={() => handleRowClick(row, ri)}
-            className={
-              [classNames.row, isSel ? classNames.rowSelected : undefined]
-                .filter(Boolean)
-                .join(" ") || undefined
-            }
-            style={{
-              position: "absolute",
-              left: 0,
-              top: ri * rowHeight,
-              width: frozenWidth,
-              height: rowHeight,
-              background: frozenBg,
-              cursor: "pointer",
-              ...styles.row,
-              ...(isSel ? styles.rowSelected : {}),
-            }}
-            onMouseEnter={(e) => {
-              if (!isSel)
-                (e.currentTarget as HTMLElement).style.background =
-                  "var(--vg-bg-row-hover)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = frozenBg;
-            }}
-          >
-            <DataCell
-              column={frozenCol}
-              row={row}
-              pinned
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                width: frozenWidth,
-                height: rowHeight,
-                background: frozenBg,
-                zIndex: 2,
-              }}
-            />
-          </div>,
-        );
-      }
-    }
-
     return (
       <div
         key={`layer-${side}`}
@@ -1080,26 +1112,6 @@ function VirtualGridInner<TData = unknown>({
             {headerCells}
           </div>
         </div>
-
-        {/* Frozen-column body — still JS-synced via translateY because it
-            belongs to the overlay layer, not the scroll container.
-            Only rendered for the left side when a column is frozen. */}
-        {hasFrozen && frozenCol && (
-          <div
-            ref={pinLeftBodyRef}
-            style={{
-              position: "absolute",
-              top: totalHeaderHeight,
-              left: frozenSlotLeft,
-              width: frozenWidth,
-              height: sortedData.length * rowHeight,
-              willChange: "transform",
-              pointerEvents: "auto",
-            }}
-          >
-            {frozenBodyRows}
-          </div>
-        )}
 
         {/* Scroll shadow */}
         <div
@@ -1308,6 +1320,33 @@ function VirtualGridInner<TData = unknown>({
                       </div>
                     )}
                   </div>
+                  {/* Frozen column body — inside the scroll container so
+                      vertical scroll is handled natively (same as pinned
+                      sticky rows). position:sticky + marginLeft places it at
+                      the column's natural canvas position; CSS sticky locks it
+                      at pinnedLeftWidth once the column scrolls past.
+                      Visibility is toggled directly in handleScroll. */}
+                  {frozenColDef && (
+                    <div
+                      ref={pinLeftBodyRef}
+                      style={{
+                        position: "sticky",
+                        left: pinnedLeftWidth,
+                        marginLeft: pinnedLeftWidth + frozenColOffset,
+                        width: frozenWidth,
+                        height: sortedData.length * rowHeight,
+                        zIndex: 6,
+                        // Initial state — handleScroll + useLayoutEffect keep
+                        // this in sync after every scroll / React commit.
+                        visibility: frozenIdx !== null ? "visible" : "hidden",
+                        pointerEvents:
+                          frozenIdx !== null ? "auto" : "none",
+                      }}
+                    >
+                      {renderFrozenBodyRows()}
+                    </div>
+                  )}
+
                   {/* Virtual rows */}
                   {Array.from(
                     {
