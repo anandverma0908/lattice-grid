@@ -140,6 +140,7 @@ function VirtualGridInner<TData = unknown>({
     orderedColumns,
     resizeColumn,
     moveColumnBefore,
+    moveColumnToEnd,
   } = engine;
 
   // ── Sort notification ────────────────────────────────────────────────────────
@@ -232,11 +233,11 @@ function VirtualGridInner<TData = unknown>({
   const scrollTopRef = useRef(0);
   const [scrollTop, setScrollTop] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
-  // FIX2: Direct DOM refs — updated synchronously in scroll handler so pinned
-  // rows move in the same frame as scrollable rows. No React state lag.
-  const pinLeftBodyRef = useRef<HTMLDivElement>(null);
-  const pinRightBodyRef = useRef<HTMLDivElement>(null);
-  // Wrapper refs for non-passive wheel listener
+  // Direct DOM ref for the frozen-column body only — updated synchronously in
+  // scroll handler. Regular pinned body rows live inside the scroll container
+  // (sticky positioning) and require no JS sync at all.
+  const pinLeftBodyRef = useRef<HTMLDivElement | null>(null);
+  // Wrapper refs for non-passive wheel listener (header overlay only)
   const pinLeftWrapRef = useRef<HTMLDivElement>(null);
   const pinRightWrapRef = useRef<HTMLDivElement>(null);
 
@@ -333,11 +334,10 @@ function VirtualGridInner<TData = unknown>({
     scrollLeftRef.current = sl;
     recomputeVCols(sl);
     recomputeFrozen(sl);
-    // FIX2: Direct DOM update — bypasses React render cycle entirely.
-    // Both pinned layers and scrollable rows now move in the SAME frame.
+    // Direct DOM update — same frame as scroll event, zero React lag.
+    // This MUST run before setScrollTop so React never overwrites the transform.
     const tx = `translateY(-${st}px)`;
     if (pinLeftBodyRef.current) pinLeftBodyRef.current.style.transform = tx;
-    if (pinRightBodyRef.current) pinRightBodyRef.current.style.transform = tx;
     setScrollTop(st);
     setScrollLeft(sl);
   }, [recomputeVCols, recomputeFrozen]);
@@ -372,6 +372,20 @@ function VirtualGridInner<TData = unknown>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sync pinned body transforms after every React commit that changes scrollTop.
+  // useLayoutEffect fires after DOM mutations but before browser paint —
+  // no visible frame where pinned rows are misaligned.
+  // During live scroll, handleScroll has already set the correct value via DOM
+  // ref in the same frame, so this effect is essentially a no-op (same value).
+  // It is critical for: initial mount, sort, data change, column change.
+  React.useLayoutEffect(() => {
+    const tx = `translateY(-${scrollTop}px)`;
+    if (pinLeftBodyRef.current) pinLeftBodyRef.current.style.transform = tx;
+  });
+  // No dependency array — runs after EVERY commit. This is intentional:
+  // React may have re-created the DOM node (e.g. key change) so we always
+  // need to re-apply. The cost is negligible (two style assignments).
+
   const vCols = vColsRef.current;
   const frozenIdx = frozenIdxRef.current;
   const frozenCol: ResolvedColumn<TData> | null =
@@ -402,11 +416,62 @@ function VirtualGridInner<TData = unknown>({
       engine.orderedColumns.find((c) => c.id === id)?.width ?? 120,
   });
 
+  // Mathematical viewport bounds — works for ALL columns including those outside
+  // the virtual render window. Called inside pointer event handlers (not render).
+  const getColumnViewportBounds = useCallback(
+    (columnId: string): { left: number; right: number } | null => {
+      const bodyRect = bodyWrapRef.current?.getBoundingClientRect();
+      if (!bodyRect) return null;
+      const sl = scrollLeftRef.current;
+
+      // Pinned left
+      let acc = 0;
+      for (const col of pinnedLeftColumns) {
+        if (col.id === columnId)
+          return { left: bodyRect.left + acc, right: bodyRect.left + acc + col.width };
+        acc += col.width;
+      }
+
+      // Scrollable
+      const scIdx = scrollableColumns.findIndex((c) => c.id === columnId);
+      if (scIdx !== -1) {
+        const col = scrollableColumns[scIdx]!;
+        const bandScroll = Math.max(0, sl - pinnedLeftWidth);
+        const colLeft = pinnedLeftWidth + (offsets[scIdx] ?? 0) - bandScroll;
+        return { left: bodyRect.left + colLeft, right: bodyRect.left + colLeft + col.width };
+      }
+
+      // Pinned right
+      acc = 0;
+      for (const col of pinnedRightColumns) {
+        if (col.id === columnId) {
+          const rightStart = bodyRect.right - pinnedRightWidth;
+          return { left: rightStart + acc, right: rightStart + acc + col.width };
+        }
+        acc += col.width;
+      }
+
+      return null;
+    },
+    [pinnedLeftColumns, scrollableColumns, pinnedRightColumns, pinnedLeftWidth, pinnedRightWidth, offsets],
+  );
+
   const dragHandlers = useColumnDrag({
     onMoveColumnBefore: (src, tgt) => {
       moveColumnBefore(src, tgt);
       onColumnReorder?.(engine.orderedColumns.map((c) => c.id));
     },
+    onMoveColumnToEnd: (src) => {
+      moveColumnToEnd(src);
+      onColumnReorder?.(engine.orderedColumns.map((c) => c.id));
+    },
+    columns: visibleColumns.map((c) => ({
+      id: c.id,
+      groupId: c.groupId,
+      draggable: c.draggable,
+      pinned: c.pinned,
+    })),
+    getColumnViewportBounds,
   });
 
   const [showColMgr, setShowColMgr] = useState(false);
@@ -580,11 +645,13 @@ function VirtualGridInner<TData = unknown>({
     if (!row) return null;
     const top = totalHeaderHeight + rowIndex * rowHeight;
     const bg = rowBg(row, rowIndex);
+    const pinnedBg = pinnedRowBg(row, rowIndex);
     const isSel = isRowSelected(row, rowIndex);
     const rowKey = getRowId
       ? String(getRowId(row, rowIndex))
       : String(rowIndex);
 
+    // ── Scrollable cells (absolutely positioned inside the row) ──────────────
     const cells: React.ReactNode[] = [];
     for (let ci = vCols.startIndex; ci <= vCols.endIndex; ci++) {
       const col = scrollableColumns[ci];
@@ -606,6 +673,63 @@ function VirtualGridInner<TData = unknown>({
       );
     }
 
+    // ── Left sticky pinned cells ─────────────────────────────────────────────
+    // position:sticky on a child of an absolutely-positioned row finds the
+    // nearest overflow ancestor (the scroll area) and sticks there — so these
+    // cells stay at left:0 of the viewport while the canvas scrolls horizontally.
+    // Vertical scroll is native (no JS transform needed), which eliminates the
+    // 1-frame lag that JS-driven translateY causes on compositor-thread scrolls.
+    let leftPinAcc = 0;
+    const leftPinCells =
+      pinnedLeftColumns.length > 0
+        ? pinnedLeftColumns.map((col) => {
+            const colLeft = leftPinAcc;
+            leftPinAcc += col.width;
+            return (
+              <DataCell
+                key={`ps-l-${col.id}`}
+                column={col}
+                row={row}
+                pinned
+                style={{
+                  position: "absolute",
+                  left: colLeft,
+                  top: 0,
+                  width: col.width,
+                  height: rowHeight,
+                  background: pinnedBg,
+                }}
+              />
+            );
+          })
+        : null;
+
+    // ── Right sticky pinned cells ────────────────────────────────────────────
+    let rightPinAcc = 0;
+    const rightPinCells =
+      pinnedRightColumns.length > 0
+        ? pinnedRightColumns.map((col) => {
+            const colLeft = rightPinAcc;
+            rightPinAcc += col.width;
+            return (
+              <DataCell
+                key={`ps-r-${col.id}`}
+                column={col}
+                row={row}
+                pinned
+                style={{
+                  position: "absolute",
+                  left: colLeft,
+                  top: 0,
+                  width: col.width,
+                  height: rowHeight,
+                  background: pinnedBg,
+                }}
+              />
+            );
+          })
+        : null;
+
     return (
       <div
         key={rowKey}
@@ -626,18 +750,69 @@ function VirtualGridInner<TData = unknown>({
           height: rowHeight,
           background: bg,
           cursor: "pointer",
+          display: "flex",
           ...styles.row,
           ...(isSel ? styles.rowSelected : {}),
         }}
         onMouseEnter={(e) => {
-          if (!isSel)
-            (e.currentTarget as HTMLElement).style.background =
-              "var(--vg-bg-row-hover)";
+          if (!isSel) {
+            const el = e.currentTarget as HTMLElement;
+            el.style.background = "var(--vg-bg-row-hover)";
+            // Update sticky pinned wrappers too
+            (
+              el.querySelectorAll<HTMLElement>(
+                "[data-pinned-sticky]",
+              )
+            ).forEach((w) => {
+              w.style.background = "var(--vg-bg-row-hover)";
+            });
+          }
         }}
         onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.background = bg;
+          const el = e.currentTarget as HTMLElement;
+          el.style.background = bg;
+          (
+            el.querySelectorAll<HTMLElement>("[data-pinned-sticky]")
+          ).forEach((w) => {
+            w.style.background = pinnedBg;
+          });
         }}
       >
+        {leftPinCells && (
+          <div
+            data-pinned-sticky="left"
+            style={{
+              position: "sticky",
+              left: 0,
+              width: pinnedLeftWidth,
+              height: rowHeight,
+              flexShrink: 0,
+              zIndex: 5,
+              background: pinnedBg,
+              overflow: "hidden",
+            }}
+          >
+            {leftPinCells}
+          </div>
+        )}
+        {rightPinCells && <div style={{ flex: 1 }} />}
+        {rightPinCells && (
+          <div
+            data-pinned-sticky="right"
+            style={{
+              position: "sticky",
+              right: 0,
+              width: pinnedRightWidth,
+              height: rowHeight,
+              flexShrink: 0,
+              zIndex: 5,
+              background: pinnedBg,
+              overflow: "hidden",
+            }}
+          >
+            {rightPinCells}
+          </div>
+        )}
         {cells}
       </div>
     );
@@ -666,42 +841,74 @@ function VirtualGridInner<TData = unknown>({
     // Header cells
     const headerCells: React.ReactNode[] = [];
     if (hasGroups) {
+      const renderedGroupIds = new Set<string>();
+
       cols.forEach((col, i) => {
-        headerCells.push(
-          <div
-            key={`ph-${col.id}`}
-            style={{
-              position: "absolute",
-              left: colLefts[i],
-              top: 0,
-              width: col.width,
-              height: groupHeaderHeight + headerHeight,
-              background: "var(--vg-bg-group)",
-              borderRight: isLeft
-                ? "1px solid var(--vg-border-strong)"
-                : undefined,
-              borderLeft: !isLeft
-                ? "1px solid var(--vg-border-strong)"
-                : undefined,
-              borderBottom: "1px solid var(--vg-border-strong)",
-              zIndex: 2,
-              boxSizing: "border-box",
-              display: "flex",
-              alignItems: "center",
-              padding: "0 10px",
-              fontWeight: 700,
-              fontSize: "calc(var(--vg-font-size) - 0.5px)",
-              color: "var(--vg-text-group)",
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-              ...styles.headerCell,
-            }}
-          >
-            {col.label}
-          </div>,
-        );
+        if (!col.groupId) {
+          // Ungrouped pinned column: span both header rows, use HeaderCell (supports renderHeader)
+          headerCells.push(
+            <HeaderCell
+              key={`ph-span-${col.id}`}
+              column={col}
+              isFirst={i === 0}
+              isLast={i === cols.length - 1}
+              style={{
+                position: "absolute",
+                left: colLefts[i],
+                top: 0,
+                width: col.width,
+                height: groupHeaderHeight + headerHeight,
+                zIndex: 2,
+                background: "var(--vg-bg-header)",
+              }}
+            />,
+          );
+        } else {
+          // Group header cell (rendered once per group)
+          if (!renderedGroupIds.has(col.groupId)) {
+            renderedGroupIds.add(col.groupId);
+            const grp = groups.find((g) => g.id === col.groupId);
+            if (grp) {
+              const grpCols = cols.filter((c) => c.groupId === col.groupId);
+              const grpWidth = grpCols.reduce((s, c) => s + c.width, 0);
+              headerCells.push(
+                <GroupHeaderCell
+                  key={`pgh-${grp.id}`}
+                  group={grp}
+                  left={colLefts[i] ?? 0}
+                  width={grpWidth}
+                  height={groupHeaderHeight}
+                />,
+              );
+            }
+          }
+          // Leaf header cell (one per column) — uses HeaderCell so renderHeader is applied
+          headerCells.push(
+            <HeaderCell
+              key={`ph-leaf-${col.id}`}
+              column={col}
+              isFirst={i === 0 || cols[i - 1]?.groupId !== col.groupId}
+              isLast={i === cols.length - 1 || cols[i + 1]?.groupId !== col.groupId}
+              style={{
+                position: "absolute",
+                left: colLefts[i],
+                top: groupHeaderHeight,
+                width: col.width,
+                height: headerHeight,
+                zIndex: 2,
+                background: "var(--vg-bg-header)",
+              }}
+            />,
+          );
+        }
       });
       if (hasFrozen && frozenCol) {
+        const fjc =
+          frozenCol.align === "center"
+            ? "center"
+            : frozenCol.align === "right"
+              ? "flex-end"
+              : "flex-start";
         headerCells.push(
           <div
             key={`ph-frozen-${frozenCol.id}`}
@@ -718,6 +925,7 @@ function VirtualGridInner<TData = unknown>({
               boxSizing: "border-box",
               display: "flex",
               alignItems: "center",
+              justifyContent: fjc,
               padding: "0 10px",
               fontWeight: 700,
               fontSize: "calc(var(--vg-font-size) - 0.5px)",
@@ -770,91 +978,64 @@ function VirtualGridInner<TData = unknown>({
       }
     }
 
-    // Body — grouped by row for click handling
-    const bodyCells: React.ReactNode[] = [];
-    for (let ri = vRows.startIndex; ri <= vRows.endIndex; ri++) {
-      const row = sortedData[ri];
-      if (!row) continue;
-      const rowKey = getRowId ? String(getRowId(row, ri)) : String(ri);
-      const bg = pinnedRowBg(row, ri);
-      const isSel = isRowSelected(row, ri);
-
-      const rowCells: React.ReactNode[] = [];
-      cols.forEach((col, i) => {
-        rowCells.push(
-          <DataCell
-            key={`pb-${col.id}`}
-            column={col}
-            row={row}
-            pinned
-            style={{
-              position: "absolute",
-              left: colLefts[i],
-              top: 0,
-              width: col.width,
-              height: rowHeight,
-              background: bg,
-              zIndex: 2,
-            }}
-          />,
-        );
-      });
-
-      if (hasFrozen && frozenCol) {
+    // Body — only the frozen column (regular pinned body rows are rendered as
+    // CSS sticky elements inside the scroll container — no JS sync needed).
+    const frozenBodyRows: React.ReactNode[] = [];
+    if (hasFrozen && frozenCol) {
+      for (let ri = vRows.startIndex; ri <= vRows.endIndex; ri++) {
+        const row = sortedData[ri];
+        if (!row) continue;
+        const rowKey = getRowId ? String(getRowId(row, ri)) : String(ri);
+        const isSel = isRowSelected(row, ri);
         const frozenBg = isSel
           ? "var(--vg-bg-row-selected)"
           : "var(--vg-bg-frozen, var(--vg-bg-row-alt))";
-        rowCells.push(
-          <DataCell
-            key={`pb-frozen-${frozenCol.id}`}
-            column={frozenCol}
-            row={row}
-            pinned
+        frozenBodyRows.push(
+          <div
+            key={rowKey}
+            onClick={() => handleRowClick(row, ri)}
+            className={
+              [classNames.row, isSel ? classNames.rowSelected : undefined]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
             style={{
               position: "absolute",
-              left: frozenSlotLeft,
-              top: 0,
+              left: 0,
+              top: ri * rowHeight,
               width: frozenWidth,
               height: rowHeight,
               background: frozenBg,
-              zIndex: 2,
+              cursor: "pointer",
+              ...styles.row,
+              ...(isSel ? styles.rowSelected : {}),
             }}
-          />,
+            onMouseEnter={(e) => {
+              if (!isSel)
+                (e.currentTarget as HTMLElement).style.background =
+                  "var(--vg-bg-row-hover)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = frozenBg;
+            }}
+          >
+            <DataCell
+              column={frozenCol}
+              row={row}
+              pinned
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: frozenWidth,
+                height: rowHeight,
+                background: frozenBg,
+                zIndex: 2,
+              }}
+            />
+          </div>,
         );
       }
-
-      bodyCells.push(
-        <div
-          key={rowKey}
-          onClick={() => handleRowClick(row, ri)}
-          className={
-            [classNames.row, isSel ? classNames.rowSelected : undefined]
-              .filter(Boolean)
-              .join(" ") || undefined
-          }
-          style={{
-            position: "absolute",
-            left: 0,
-            top: ri * rowHeight,
-            width: layerWidth,
-            height: rowHeight,
-            background: bg,
-            cursor: "pointer",
-            ...styles.row,
-            ...(isSel ? styles.rowSelected : {}),
-          }}
-          onMouseEnter={(e) => {
-            if (!isSel)
-              (e.currentTarget as HTMLElement).style.background =
-                "var(--vg-bg-row-hover)";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.background = bg;
-          }}
-        >
-          {rowCells}
-        </div>,
-      );
     }
 
     return (
@@ -870,12 +1051,16 @@ function VirtualGridInner<TData = unknown>({
           pointerEvents: "none",
         }}
       >
+        {/* Header wrapper — height-capped so wheel events on the body area
+            reach the scroll container directly (no double-scroll). */}
         <div
           ref={isLeft ? pinLeftWrapRef : pinRightWrapRef}
           style={{
-            position: "relative",
+            position: "absolute",
+            top: 0,
+            left: 0,
             width: layerWidth,
-            height: "100%",
+            height: totalHeaderHeight,
             pointerEvents: "auto",
           }}
         >
@@ -894,36 +1079,44 @@ function VirtualGridInner<TData = unknown>({
           >
             {headerCells}
           </div>
+        </div>
+
+        {/* Frozen-column body — still JS-synced via translateY because it
+            belongs to the overlay layer, not the scroll container.
+            Only rendered for the left side when a column is frozen. */}
+        {hasFrozen && frozenCol && (
           <div
-            ref={isLeft ? pinLeftBodyRef : pinRightBodyRef}
+            ref={pinLeftBodyRef}
             style={{
               position: "absolute",
               top: totalHeaderHeight,
-              left: 0,
-              width: layerWidth,
+              left: frozenSlotLeft,
+              width: frozenWidth,
               height: sortedData.length * rowHeight,
-              transform: `translateY(-${scrollTop}px)`,
               willChange: "transform",
+              pointerEvents: "auto",
             }}
           >
-            {bodyCells}
+            {frozenBodyRows}
           </div>
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              [isLeft ? "right" : "left"]: -8,
-              top: 0,
-              width: 8,
-              height: "100%",
-              pointerEvents: "none",
-              zIndex: 15,
-              background: isLeft
-                ? "linear-gradient(to right, rgba(0,0,0,0.08), transparent)"
-                : "linear-gradient(to left, rgba(0,0,0,0.08), transparent)",
-            }}
-          />
-        </div>
+        )}
+
+        {/* Scroll shadow */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            [isLeft ? "right" : "left"]: -8,
+            top: 0,
+            width: 8,
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 15,
+            background: isLeft
+              ? "linear-gradient(to right, rgba(0,0,0,0.08), transparent)"
+              : "linear-gradient(to left, rgba(0,0,0,0.08), transparent)",
+          }}
+        />
       </div>
     );
   };
@@ -1047,6 +1240,7 @@ function VirtualGridInner<TData = unknown>({
                   scrollbarWidth: "thin",
                   scrollbarColor:
                     "var(--vg-scrollbar-thumb) var(--vg-scrollbar-track)",
+                  willChange: "scroll-position",
                 }}
               >
                 <div
@@ -1173,6 +1367,132 @@ function VirtualGridInner<TData = unknown>({
           ) : (
             <Footer {...footerProps} />
           ))}
+
+        {/* ── DRAG: GHOST COLUMN + DROP INDICATOR ────────────────────────────
+            position:fixed escapes overflow:hidden; kept inside this div so
+            CSS variables (tokenStyle) cascade. Positions are updated via
+            direct DOM style in useColumnDrag — no React re-render per frame.
+        ─────────────────────────────────────────────────────────────────── */}
+        {dragHandlers.dragState.draggingId &&
+          (() => {
+            const { draggingId } = dragHandlers.dragState;
+            const draggingCol = visibleColumns.find((c) => c.id === draggingId);
+            if (!draggingCol) return null;
+            const bodyRect = bodyWrapRef.current?.getBoundingClientRect();
+            if (!bodyRect) return null;
+
+            const jc =
+              draggingCol.align === "center"
+                ? "center"
+                : draggingCol.align === "right"
+                  ? "flex-end"
+                  : "flex-start";
+
+            return (
+              <>
+                {/* Ghost column.
+                    IMPORTANT: `left` is intentionally absent from this style.
+                    The hook sets it via DOM in useLayoutEffect (initial) and
+                    requestAnimationFrame (subsequent moves).  If `left` were
+                    in the React style, every overTargetId change would cause
+                    a re-render that resets it to the stale initial value,
+                    making the ghost snap back on every column boundary. */}
+                <div
+                  ref={dragHandlers.registerGhost}
+                  style={{
+                    position: "fixed",
+                    top: bodyRect.top,
+                    width: draggingCol.width,
+                    height: bodyRect.height,
+                    zIndex: 9999,
+                    pointerEvents: "none",
+                    boxShadow: "0 6px 24px rgba(0,0,0,0.20)",
+                    borderRadius: 4,
+                    overflow: "hidden",
+                    background: "var(--vg-bg)",
+                  }}
+                >
+                  {/* Ghost header — matches pinned overlay header exactly */}
+                  <div
+                    style={{
+                      height: totalHeaderHeight,
+                      background: "var(--vg-bg-header)",
+                      borderBottom: "1px solid var(--vg-border-strong)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: jc,
+                      padding: "0 8px",
+                      fontWeight: 600,
+                      fontSize: "var(--vg-font-size)",
+                      color: "var(--vg-text-header)",
+                      boxSizing: "border-box",
+                      overflow: "hidden",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {draggingCol.label}
+                  </div>
+
+                  {/* Ghost body cells */}
+                  {Array.from(
+                    { length: vRows.endIndex - vRows.startIndex + 1 },
+                    (_, i) => {
+                      const ri = vRows.startIndex + i;
+                      const row = sortedData[ri];
+                      if (!row) return null;
+                      const raw = draggingCol.accessor
+                        ? draggingCol.accessor(row)
+                        : (row as Record<string, unknown>)[
+                            draggingCol.field ?? draggingCol.id
+                          ];
+                      const content = draggingCol.renderCell
+                        ? draggingCol.renderCell(raw, row)
+                        : (raw as React.ReactNode) ?? "—";
+                      return (
+                        <div
+                          key={ri}
+                          style={{
+                            height: rowHeight,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: jc,
+                            padding: "0 10px",
+                            fontSize: "var(--vg-font-size)",
+                            color: "var(--vg-text)",
+                            borderBottom: "1px solid var(--vg-border)",
+                            boxSizing: "border-box",
+                            overflow: "hidden",
+                            whiteSpace: "nowrap",
+                            background: rowBg(row, ri),
+                          }}
+                        >
+                          {content}
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
+
+                {/* Drop indicator line.
+                    IMPORTANT: `left` and `display` are absent — the hook
+                    writes them directly so React re-renders don't reset them.
+                    registerIndicator initialises display:none on mount. */}
+                <div
+                  ref={dragHandlers.registerIndicator}
+                  style={{
+                    position: "fixed",
+                    top: bodyRect.top,
+                    width: 2,
+                    height: bodyRect.height,
+                    background: "var(--vg-accent)",
+                    zIndex: 10000,
+                    pointerEvents: "none",
+                    borderRadius: 1,
+                  }}
+                />
+              </>
+            );
+          })()}
       </div>
     </GridContextProvider>
   );

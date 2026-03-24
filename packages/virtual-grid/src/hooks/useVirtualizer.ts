@@ -30,14 +30,14 @@ import type { ResolvedColumn, VirtualColWindow, VirtualRowWindow } from '../type
 //  CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OVERSCAN_ROWS   = 8;
+const OVERSCAN_ROWS   = 16;
 
 /**
  * Pixel buffer rendered beyond each edge of the visible column window.
- * 500px = ~7 columns at 66px wide, ~4 columns at 120px wide.
+ * 1000px = ~15 columns at 66px wide, ~8 columns at 120px wide.
  * Large enough that even aggressive fast-scroll lands inside the buffer.
  */
-const OVERSCAN_COL_PX = 500;
+const OVERSCAN_COL_PX = 1000;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ROW VIRTUALISER

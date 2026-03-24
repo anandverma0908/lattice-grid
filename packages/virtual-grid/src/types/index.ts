@@ -130,6 +130,7 @@ export interface GridEngineActions {
   toggleColumnVisibility: (columnId: string) => void;
   showAllColumns: () => void;
   moveColumnBefore: (sourceId: string, targetId: string) => void;
+  moveColumnToEnd: (sourceId: string) => void;
   toggleSort: (columnId: string) => void;
   resetColumns: () => void;
 }

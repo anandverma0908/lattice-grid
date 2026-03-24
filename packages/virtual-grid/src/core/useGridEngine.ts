@@ -72,6 +72,7 @@ type Action =
   | { type: 'TOGGLE_HIDDEN'; id: string }
   | { type: 'SHOW_ALL' }
   | { type: 'MOVE_BEFORE'; sourceId: string; targetId: string }
+  | { type: 'MOVE_LAST'; sourceId: string }
   | { type: 'TOGGLE_SORT'; id: string }
   | { type: 'RESET'; initial: EngineInternalState };
 
@@ -139,6 +140,15 @@ function reducer(state: EngineInternalState, action: Action): EngineInternalStat
       // Re-calculate target index after removal
       const newToIdx = arr.indexOf(targetId);
       arr.splice(newToIdx, 0, sourceId);
+      return { ...state, colOrder: arr };
+    }
+
+    case 'MOVE_LAST': {
+      const arr = [...state.colOrder];
+      const idx = arr.indexOf(action.sourceId);
+      if (idx === -1 || idx === arr.length - 1) return state;
+      arr.splice(idx, 1);
+      arr.push(action.sourceId);
       return { ...state, colOrder: arr };
     }
 
@@ -347,6 +357,11 @@ export function useGridEngine<TData>(
     [],
   );
 
+  const moveColumnToEnd: GridEngineActions['moveColumnToEnd'] = useCallback(
+    (sourceId) => dispatch({ type: 'MOVE_LAST', sourceId }),
+    [],
+  );
+
   const toggleSort: GridEngineActions['toggleSort'] = useCallback(
     (id) => dispatch({ type: 'TOGGLE_SORT', id }),
     [],
@@ -379,6 +394,7 @@ export function useGridEngine<TData>(
     toggleColumnVisibility,
     showAllColumns,
     moveColumnBefore,
+    moveColumnToEnd,
     toggleSort,
     resetColumns,
   };

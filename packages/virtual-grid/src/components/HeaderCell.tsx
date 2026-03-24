@@ -145,6 +145,12 @@ export const HeaderCell = memo(function HeaderCell({
         position: "absolute",
         display: "flex",
         alignItems: "center",
+        justifyContent:
+          column.align === "center"
+            ? "center"
+            : column.align === "right"
+              ? "flex-end"
+              : "flex-start",
         padding: "0 8px",
         fontWeight: 600,
         fontSize: "var(--vg-font-size)",

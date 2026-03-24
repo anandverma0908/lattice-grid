@@ -19,6 +19,23 @@ interface DataCellProps {
   pinned?: boolean;
 }
 
+function dataCellEqual(
+  prev: Readonly<DataCellProps>,
+  next: Readonly<DataCellProps>,
+): boolean {
+  return (
+    prev.column    === next.column    &&
+    prev.row       === next.row       &&
+    prev.pinned    === next.pinned    &&
+    prev.style.left       === next.style.left       &&
+    prev.style.top        === next.style.top        &&
+    prev.style.width      === next.style.width      &&
+    prev.style.height     === next.style.height     &&
+    prev.style.background === next.style.background &&
+    prev.style.zIndex     === next.style.zIndex
+  );
+}
+
 export const DataCell = memo(function DataCell({
   column,
   row,
@@ -68,7 +85,7 @@ export const DataCell = memo(function DataCell({
       {content}
     </div>
   );
-});
+}, dataCellEqual);
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  GROUP HEADER CELL
