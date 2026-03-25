@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — Public Type Definitions  (v2.1)
+//  @lattice-grid-lib/core — Public Type Definitions  (v2.1)
 // =============================================================================
 
 import type { CSSProperties, ReactNode } from "react";

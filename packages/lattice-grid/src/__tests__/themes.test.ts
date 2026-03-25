@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — Theme system unit tests
+//  @lattice-grid-lib/core — Theme system unit tests
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';

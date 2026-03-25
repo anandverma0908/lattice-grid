@@ -14,10 +14,6 @@
     "typescript",
     "headless"
   ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/yourorg/lattice-grid"
-  },
   "main": "./dist/index.cjs.js",
   "module": "./dist/index.esm.js",
   "types": "./dist/index.d.ts",

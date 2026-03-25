@@ -23,7 +23,7 @@ development workflow, code standards, and how to submit changes.
 ```
 lattice-grid/                   ← monorepo root
 ├── packages/
-│   └── lattice-grid/           ← @lattice-grid/core  (npm package)
+│   └── lattice-grid/           ← @lattice-grid-lib/core  (npm package)
 │       ├── src/
 │       │   ├── core/           ← pure state logic, context, themes
 │       │   ├── hooks/          ← custom React hooks

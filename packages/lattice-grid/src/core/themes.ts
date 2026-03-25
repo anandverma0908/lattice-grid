@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — Design Token System
+//  @lattice-grid-lib/core — Design Token System
 //
 //  Tokens are CSS custom properties injected onto the grid root element.
 //  Consumers can override any token by:

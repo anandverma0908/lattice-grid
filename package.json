@@ -2,7 +2,7 @@
   "name": "lattice-grid-monorepo",
   "private": true,
   "version": "1.0.0",
-  "description": "Monorepo for @lattice-grid/core library and demo app",
+  "description": "Monorepo for @lattice-grid-lib/core library and demo app",
   "workspaces": [
     "packages/*",
     "apps/*"

@@ -1,8 +1,8 @@
-# @lattice-grid/core
+# @lattice-grid-lib/core
 
 A high-performance, fully-customisable React data grid with row & column virtualisation.
 
-[![npm version](https://img.shields.io/npm/v/@lattice-grid/core.svg)](https://www.npmjs.com/package/@lattice-grid/core)
+[![npm version](https://img.shields.io/npm/v/@lattice-grid-lib/core.svg)](https://www.npmjs.com/package/@lattice-grid-lib/core)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://reactjs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -30,11 +30,11 @@ A high-performance, fully-customisable React data grid with row & column virtual
 ## Installation
 
 ```bash
-npm install @lattice-grid/core
+npm install @lattice-grid-lib/core
 # or
-yarn add @lattice-grid/core
+yarn add @lattice-grid-lib/core
 # or
-pnpm add @lattice-grid/core
+pnpm add @lattice-grid-lib/core
 ```
 
 ---
@@ -42,7 +42,7 @@ pnpm add @lattice-grid/core
 ## Quick start
 
 ```tsx
-import { LatticeGrid } from '@lattice-grid/core';
+import { LatticeGrid } from '@lattice-grid-lib/core';
 
 interface Row {
   id: number;
@@ -108,7 +108,7 @@ const columns = [
 ## Theming
 
 ```tsx
-import { LatticeGrid, GRID_THEMES } from '@lattice-grid/core';
+import { LatticeGrid, GRID_THEMES } from '@lattice-grid-lib/core';
 
 // Built-in preset
 <LatticeGrid theme="dark" ... />
@@ -132,7 +132,7 @@ const myTheme = { ...GRID_THEMES.dark, '--vg-accent': '#a855f7' };
 The engine is fully decoupled from the renderer. Use it to build a completely custom grid UI:
 
 ```tsx
-import { useGridEngine } from '@lattice-grid/core';
+import { useGridEngine } from '@lattice-grid-lib/core';
 
 function MyCustomGrid({ columns, data }) {
   const engine = useGridEngine(columns);
@@ -174,7 +174,7 @@ function MyCustomGrid({ columns, data }) {
 ```
 lattice-grid/
 ├── packages/
-│   └── lattice-grid/           @lattice-grid/core (the library)
+│   └── lattice-grid/           @lattice-grid-lib/core (the library)
 │       ├── src/
 │       │   ├── core/
 │       │   │   ├── useGridEngine.ts     Pure state machine

@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useGridPagination
+//  @lattice-grid-lib/core — useGridPagination
 //
 //  Thin pagination state manager. Supports both:
 //    • Client-side  — pass `data` and get back a `pageData` slice

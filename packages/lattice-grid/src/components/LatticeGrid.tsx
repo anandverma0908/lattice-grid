@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — LatticeGrid  (v2.0)
+//  @lattice-grid-lib/core — LatticeGrid  (v2.0)
 //
 //  New customisation surface (all optional, fully backwards-compatible):
 //

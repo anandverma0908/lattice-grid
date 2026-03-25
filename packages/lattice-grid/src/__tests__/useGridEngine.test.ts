@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useGridEngine unit tests
+//  @lattice-grid-lib/core — useGridEngine unit tests
 // =============================================================================
 
 import { describe, it, expect, vi } from 'vitest';

@@ -27,7 +27,7 @@ import {
   type SortState,
   type ResolvedColumn,
   type ColumnManagerRenderProps,
-} from "@lattice-grid/core";
+} from "@lattice-grid-lib/core";
 import { generateInventoryData, type InventoryRow } from "./data/inventory";
 import { INVENTORY_COLUMNS } from "./data/columns";
 import { Docs } from "./components/Docs";

@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — GridContext
+//  @lattice-grid-lib/core — GridContext
 // =============================================================================
 
 import { createContext, useContext } from 'react';

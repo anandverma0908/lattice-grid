@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — Virtualiser unit tests
+//  @lattice-grid-lib/core — Virtualiser unit tests
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';

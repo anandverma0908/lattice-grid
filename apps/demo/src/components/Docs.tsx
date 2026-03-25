@@ -12,7 +12,7 @@ import {
   type SortState,
   type ColumnState,
   type ColumnManagerRenderProps,
-} from '@lattice-grid/core';
+} from '@lattice-grid-lib/core';
 import { generateInventoryData, type InventoryRow } from '../data/inventory';
 import { INVENTORY_COLUMNS } from '../data/columns';
 
@@ -538,18 +538,18 @@ export function Docs({ isDark }: { isDark: boolean }) {
 
           {/* ── INSTALLATION ───────────────────────────────────────────────── */}
           <Section id="install" title="Installation">
-            <Code lang="bash">{`npm install @lattice-grid/core
+            <Code lang="bash">{`npm install @lattice-grid-lib/core
 # yarn
-yarn add @lattice-grid/core
+yarn add @lattice-grid-lib/core
 # pnpm
-pnpm add @lattice-grid/core`}</Code>
+pnpm add @lattice-grid-lib/core`}</Code>
             <Callout type="info">Requires React 18 or later. No other runtime dependencies.</Callout>
           </Section>
 
           {/* ── QUICK START ────────────────────────────────────────────────── */}
           <Section id="quickstart" title="Quick start"
             subtitle="The minimum working setup. Import LatticeGrid, define columns, pass data.">
-            <Code>{`import { LatticeGrid } from '@lattice-grid/core';
+            <Code>{`import { LatticeGrid } from '@lattice-grid-lib/core';
 
 // 1. Define your row type
 interface Product {
@@ -585,7 +585,7 @@ export function MyPage() {
           {/* ── COLUMN DEFINITIONS ─────────────────────────────────────────── */}
           <Section id="col-defs" title="Column definitions"
             subtitle="Every property a leaf column supports. All properties except id and label are optional.">
-            <Code>{`import type { ColumnDef } from '@lattice-grid/core';
+            <Code>{`import type { ColumnDef } from '@lattice-grid-lib/core';
 
 const columns: ColumnDef<MyRow>[] = [
   {
@@ -1118,7 +1118,7 @@ function MyColumnPanel({ engine, onClose }) {
 />
 
 // Option 3 — start from a preset and override
-import { GRID_THEMES } from '@lattice-grid/core';
+import { GRID_THEMES } from '@lattice-grid-lib/core';
 
 <LatticeGrid
   theme={{ ...GRID_THEMES.dark, '--vg-accent': '#a855f7' }}
@@ -1281,7 +1281,7 @@ import { GRID_THEMES } from '@lattice-grid/core';
           <Section id="persistence" title="Persistence"
             badge={{ text: 'onColumnStateChange', color: '#16a34a' }}
             subtitle="Save column layout to your API whenever the user changes it. Restore on next visit by applying the saved state on mount.">
-            <Code>{`import { type ColumnState } from '@lattice-grid/core';
+            <Code>{`import { type ColumnState } from '@lattice-grid-lib/core';
 
 // ColumnState shape:
 // { id: string, hidden: boolean, pinned: PinSide|null, width: number, order: number }
@@ -1376,7 +1376,7 @@ function MyGrid() {
   useVirtualCols,
   buildColumnOffsets,
   calcColWindow,
-} from '@lattice-grid/core';
+} from '@lattice-grid-lib/core';
 
 function MyCustomGrid({ columns, data }) {
   const engine = useGridEngine(columns);
@@ -1465,7 +1465,7 @@ vRows.totalHeight // total canvas height (rowCount × rowHeight)`}</Code>
             </SubSection>
 
             <SubSection title="calcColWindow / useVirtualCols">
-              <Code>{`import { calcColWindow, buildColumnOffsets } from '@lattice-grid/core';
+              <Code>{`import { calcColWindow, buildColumnOffsets } from '@lattice-grid-lib/core';
 
 const offsets = buildColumnOffsets(scrollableColumns);
 const widths  = scrollableColumns.map(c => c.width);
@@ -1480,7 +1480,7 @@ const { startIndex, endIndex } = calcColWindow(
             </SubSection>
 
             <SubSection title="useRowSelection">
-              <Code>{`import { useRowSelection } from '@lattice-grid/core';
+              <Code>{`import { useRowSelection } from '@lattice-grid-lib/core';
 
 const sel = useRowSelection({
   data,
@@ -1502,7 +1502,7 @@ sel.handleRowClick(row, index, event)`}</Code>
             </SubSection>
 
             <SubSection title="useColumnFilter">
-              <Code>{`import { useColumnFilter } from '@lattice-grid/core';
+              <Code>{`import { useColumnFilter } from '@lattice-grid-lib/core';
 
 const filter = useColumnFilter({ data, columns: leafColumns });
 
@@ -1525,7 +1525,7 @@ useColumnFilter({
             </SubSection>
 
             <SubSection title="useGridPagination">
-              <Code>{`import { useGridPagination, GridPagination } from '@lattice-grid/core';
+              <Code>{`import { useGridPagination, GridPagination } from '@lattice-grid-lib/core';
 
 // Client-side
 const page = useGridPagination({ data: allRows, pageSize: 100 });
@@ -1545,7 +1545,7 @@ page.setPageSize(n)`}</Code>
             </SubSection>
 
             <SubSection title="useGridExport">
-              <Code>{`import { useGridExport } from '@lattice-grid/core';
+              <Code>{`import { useGridExport } from '@lattice-grid-lib/core';
 
 const exporter = useGridExport({
   data:    sortedFilteredData,
@@ -1703,7 +1703,7 @@ import type {
   // Virtualisation
   VirtualRowWindow,
   VirtualColWindow,
-} from '@lattice-grid/core';`}</Code>
+} from '@lattice-grid-lib/core';`}</Code>
           </Section>
 
         </div>

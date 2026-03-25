@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — Toolbar, Footer, default icons
+//  @lattice-grid-lib/core — Toolbar, Footer, default icons
 // =============================================================================
 
 import React, { memo, type ReactNode } from 'react';

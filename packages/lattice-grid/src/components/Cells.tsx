@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — DataCell / GroupHeaderCell / EmptyState
+//  @lattice-grid-lib/core — DataCell / GroupHeaderCell / EmptyState
 // =============================================================================
 
 import React, { memo, type CSSProperties, type ReactNode } from 'react';

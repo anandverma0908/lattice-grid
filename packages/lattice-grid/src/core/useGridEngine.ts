@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useGridEngine
+//  @lattice-grid-lib/core — useGridEngine
 //
 //  Pure state machine. Zero rendering dependencies.
 //  Manages: column order, widths, pinning, visibility, sorting.

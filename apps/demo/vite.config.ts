@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       // Point workspace dep to local source for hot-reload DX
-      '@lattice-grid/core': resolve(__dirname, '../../packages/lattice-grid/src/index.ts'),
+      '@lattice-grid-lib/core': resolve(__dirname, '../../packages/lattice-grid/src/index.ts'),
     },
   },
   server: {

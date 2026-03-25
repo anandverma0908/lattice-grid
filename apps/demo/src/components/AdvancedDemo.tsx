@@ -15,7 +15,7 @@ import {
   type ColumnDef,
   type LeafColumnDef,
   type ThemePreset,
-} from '@lattice-grid/core';
+} from '@lattice-grid-lib/core';
 import { generateInventoryData, type InventoryRow } from '../data/inventory';
 
 const ALL_DATA = generateInventoryData(2000);

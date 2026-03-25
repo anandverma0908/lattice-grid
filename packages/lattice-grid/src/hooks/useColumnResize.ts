@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useColumnResize
+//  @lattice-grid-lib/core — useColumnResize
 //
 //  Attaches mouse-drag listeners for column resize.
 //  Returns an onMouseDown handler to attach to the resize handle element.

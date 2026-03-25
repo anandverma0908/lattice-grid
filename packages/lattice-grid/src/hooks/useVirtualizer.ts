@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useVirtualRows / useVirtualCols
+//  @lattice-grid-lib/core — useVirtualRows / useVirtualCols
 //
 //  Pure window-computation hooks.
 //

@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — GridPagination
+//  @lattice-grid-lib/core — GridPagination
 //
 //  A ready-made pagination bar for use alongside LatticeGrid.
 //  Fully themeable via the same CSS tokens.

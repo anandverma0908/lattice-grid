@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useColumnManager
+//  @lattice-grid-lib/core — useColumnManager
 //
 //  A standalone hook that gives you everything needed to render a column
 //  manager panel ANYWHERE in your app — completely independent of the grid's

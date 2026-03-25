@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useGridExport
+//  @lattice-grid-lib/core — useGridExport
 //
 //  Export visible grid data to CSV or JSON.
 //  Respects the current visible column set and sort order.

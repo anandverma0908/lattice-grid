@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — HeaderCell  v2.1
+//  @lattice-grid-lib/core — HeaderCell  v2.1
 //
 //  FIX 3: renderHeader now receives (column, engine) as second argument.
 //  Custom headers can show sort state, fire actions, render filter inputs, etc.

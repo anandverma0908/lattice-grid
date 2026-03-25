@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — ColumnManager
+//  @lattice-grid-lib/core — ColumnManager
 //
 //  Can be replaced entirely via slots.columnManager.
 //  Can be used standalone anywhere via useColumnManager hook (see index.ts).

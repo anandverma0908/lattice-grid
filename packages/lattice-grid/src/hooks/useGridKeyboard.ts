@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useGridKeyboard
+//  @lattice-grid-lib/core — useGridKeyboard
 //
 //  ARIA-compliant keyboard navigation for the grid.
 //

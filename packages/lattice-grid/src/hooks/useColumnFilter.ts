@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useColumnFilter
+//  @lattice-grid-lib/core — useColumnFilter
 //
 //  Per-column filtering. Returns a filtered slice of the data array and
 //  methods to set/clear per-column filter values.

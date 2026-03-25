@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useColumnDrag  (pointer-event based reorder)
+//  @lattice-grid-lib/core — useColumnDrag  (pointer-event based reorder)
 //
 //  Performance design:
 //    • Only `draggingId` and `overTargetId` live in React state.

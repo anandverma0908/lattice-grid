@@ -1,5 +1,5 @@
 // =============================================================================
-//  @lattice-grid/core — useRowSelection
+//  @lattice-grid-lib/core — useRowSelection
 //
 //  Manages multi-row selection state.
 //  Supports:

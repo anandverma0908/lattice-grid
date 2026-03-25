@@ -2,14 +2,14 @@
   "name": "@lattice-grid/demo",
   "private": true,
   "version": "0.0.1",
-  "description": "Demo / documentation site for @lattice-grid/core",
+  "description": "Demo / documentation site for @lattice-grid-lib/core",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@lattice-grid/core": "*",
+    "@lattice-grid-lib/core": "*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
