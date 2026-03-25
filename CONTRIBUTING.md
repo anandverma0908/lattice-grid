@@ -1,4 +1,4 @@
-# Contributing to VirtualGrid
+# Contributing to LatticeGrid
 
 Thank you for taking the time to contribute. This document explains the
 development workflow, code standards, and how to submit changes.
@@ -21,9 +21,9 @@ development workflow, code standards, and how to submit changes.
 ## Repository layout
 
 ```
-virtual-grid/                   ← monorepo root
+lattice-grid/                   ← monorepo root
 ├── packages/
-│   └── virtual-grid/           ← @virtual-grid/core  (npm package)
+│   └── lattice-grid/           ← @lattice-grid/core  (npm package)
 │       ├── src/
 │       │   ├── core/           ← pure state logic, context, themes
 │       │   ├── hooks/          ← custom React hooks
@@ -34,7 +34,7 @@ virtual-grid/                   ← monorepo root
     └── demo/                   ← documentation + live demo site
 ```
 
-The library (`packages/virtual-grid`) has **zero runtime dependencies**.
+The library (`packages/lattice-grid`) has **zero runtime dependencies**.
 The demo app (`apps/demo`) only depends on the library itself plus React.
 
 ---
@@ -45,8 +45,8 @@ The demo app (`apps/demo`) only depends on the library itself plus React.
 
 ```bash
 # 1. Clone
-git clone https://github.com/yourorg/virtual-grid.git
-cd virtual-grid
+git clone https://github.com/yourorg/lattice-grid.git
+cd lattice-grid
 
 # 2. Install workspace deps
 npm install
@@ -55,10 +55,10 @@ npm install
 npm run dev
 
 # 4. Run tests in watch mode
-npm run test:watch --workspace=packages/virtual-grid
+npm run test:watch --workspace=packages/lattice-grid
 ```
 
-The demo app is aliased to read from `packages/virtual-grid/src/index.ts`
+The demo app is aliased to read from `packages/lattice-grid/src/index.ts`
 directly (see `apps/demo/vite.config.ts`), so any change to the library is
 immediately reflected in the browser.
 
@@ -68,14 +68,14 @@ immediately reflected in the browser.
 
 ### Adding a new hook
 
-1. Create `packages/virtual-grid/src/hooks/useYourHook.ts`
+1. Create `packages/lattice-grid/src/hooks/useYourHook.ts`
 2. Export types + hook from `src/index.ts`
 3. Add unit tests in `src/__tests__/useYourHook.test.ts`
 4. Document with JSDoc — consumers rely on hover-docs in their editor
 
 ### Adding a new component
 
-1. Create `packages/virtual-grid/src/components/YourComponent.tsx`
+1. Create `packages/lattice-grid/src/components/YourComponent.tsx`
 2. Export from `src/index.ts` if it is a public component
 3. Components must consume CSS variables exclusively — never hardcode colours
 4. Keep components `memo`-wrapped to minimise re-renders
@@ -127,17 +127,17 @@ immediately reflected in the browser.
 
 ## Writing tests
 
-Tests live in `packages/virtual-grid/src/__tests__/` and run via Vitest.
+Tests live in `packages/lattice-grid/src/__tests__/` and run via Vitest.
 
 ```bash
 # Run all tests once
-npm run test --workspace=packages/virtual-grid
+npm run test --workspace=packages/lattice-grid
 
 # Watch mode
-npm run test:watch --workspace=packages/virtual-grid
+npm run test:watch --workspace=packages/lattice-grid
 
 # With coverage
-npm run test -- --coverage --workspace=packages/virtual-grid
+npm run test -- --coverage --workspace=packages/lattice-grid
 ```
 
 ### Test conventions
@@ -214,7 +214,7 @@ feat!: rename onColumnPin to onColumnPinChange
    ```bash
    npm run typecheck
    npm run lint
-   npm run test --workspace=packages/virtual-grid
+   npm run test --workspace=packages/lattice-grid
    npm run build
    ```
 
@@ -234,7 +234,7 @@ feat!: rename onColumnPin to onColumnPinChange
 Releases are managed by maintainers via git tags.
 
 ```bash
-# 1. Update version in packages/virtual-grid/package.json
+# 1. Update version in packages/lattice-grid/package.json
 # 2. Update CHANGELOG.md
 # 3. Commit
 git commit -m "chore: release v1.1.0"
@@ -251,4 +251,4 @@ using the `NPM_TOKEN` secret configured in the repository environment.
 
 ## Licence
 
-By contributing, you agree your code will be licensed under the [MIT licence](./packages/virtual-grid/README.md#licence).
+By contributing, you agree your code will be licensed under the [MIT licence](./packages/lattice-grid/README.md#licence).

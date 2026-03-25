@@ -5,7 +5,7 @@
 // =============================================================================
 
 import React from 'react';
-import type { ColumnDef } from '@virtual-grid/core';
+import type { ColumnDef } from '@lattice-grid/core';
 import type { InventoryRow } from './inventory';
 
 // ─── Cell renderers ───────────────────────────────────────────────────────────

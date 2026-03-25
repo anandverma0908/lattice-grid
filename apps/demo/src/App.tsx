@@ -1,5 +1,5 @@
 // =============================================================================
-//  VirtualGrid Demo App  v2.1
+//  LatticeGrid Demo App  v2.1
 //
 //  Five working demos — one section per fix:
 //  1. Server-side sort & pagination
@@ -17,7 +17,7 @@ import React, {
   useEffect,
 } from "react";
 import {
-  VirtualGrid,
+  LatticeGrid,
   GRID_THEMES,
   type ThemePreset,
   type GridTokens,
@@ -27,7 +27,7 @@ import {
   type SortState,
   type ResolvedColumn,
   type ColumnManagerRenderProps,
-} from "@virtual-grid/core";
+} from "@lattice-grid/core";
 import { generateInventoryData, type InventoryRow } from "./data/inventory";
 import { INVENTORY_COLUMNS } from "./data/columns";
 import { Docs } from "./components/Docs";
@@ -197,7 +197,7 @@ function Demo1ServerSort({ isDark }: { isDark: boolean }) {
         server fetches the sorted page and you pass it back. Click any header
         below.
       </p>
-      <div style={codeBlock(isDark)}>{`<VirtualGrid
+      <div style={codeBlock(isDark)}>{`<LatticeGrid
   sortMode="server"          // disable internal sort
   data={serverData}          // your pre-sorted server chunk
   loading={loading}          // show spinner while fetching
@@ -223,7 +223,7 @@ function Demo1ServerSort({ isDark }: { isDark: boolean }) {
         {log[0] ?? "Click a column header to trigger a server request…"}
       </div>
 
-      <VirtualGrid<InventoryRow>
+      <LatticeGrid<InventoryRow>
         columns={simpleColumns}
         data={serverData}
         height={240}
@@ -343,7 +343,7 @@ const handleScroll = () => {
   pinLeftBodyRef.current.style.transform = tx; // ← same frame, no React
   setScrollTop(el.scrollTop); // ← triggers re-render for virtualisation only
 };`}</div>
-      <VirtualGrid<InventoryRow>
+      <LatticeGrid<InventoryRow>
         columns={cols}
         data={ALL_DATA.slice(0, 200)}
         height={240}
@@ -498,7 +498,7 @@ function Demo3CustomHeader({ isDark }: { isDark: boolean }) {
     );
   },
 }`}</div>
-      <VirtualGrid<InventoryRow>
+      <LatticeGrid<InventoryRow>
         columns={cols}
         data={ALL_DATA.slice(0, 100)}
         height={220}
@@ -853,7 +853,7 @@ function Demo4ColumnManager({ isDark }: { isDark: boolean }) {
       </div>
       <p style={desc(isDark)}>
         The column panel is rendered in a sidebar completely outside the
-        VirtualGrid.
+        LatticeGrid.
         <code>slots.columnManager</code> returns <code>null</code> (no popup),
         and the engine is captured via <code>slots.toolbar</code>.{" "}
         <code>onColumnStateChange</code> auto-saves to localStorage — reload the
@@ -877,7 +877,7 @@ onColumnStateChange={(state) => api.post('/prefs', { columns: state })}
       <div style={{ display: "flex", gap: 12, height: 280 }}>
         {/* Grid */}
         <div style={{ flex: 1, overflow: "hidden", borderRadius: 8 }}>
-          <VirtualGrid<InventoryRow>
+          <LatticeGrid<InventoryRow>
             columns={simpleColumns}
             data={ALL_DATA.slice(0, 100)}
             height={280}
@@ -1050,7 +1050,7 @@ function Demo5FullGrid({
 
       <div style={{ display: "flex", gap: 12, overflow: "hidden" }}>
         <div style={{ flex: 1, overflow: "hidden", borderRadius: 8 }}>
-          <VirtualGrid<InventoryRow>
+          <LatticeGrid<InventoryRow>
             columns={INVENTORY_COLUMNS}
             data={ALL_DATA}
             theme={theme}
@@ -1206,7 +1206,7 @@ export default function App() {
           <span
             style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.02em" }}
           >
-            VirtualGrid
+            LatticeGrid
           </span>
           <span
             style={{

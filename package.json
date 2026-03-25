@@ -1,18 +1,18 @@
 {
-  "name": "virtual-grid-monorepo",
+  "name": "lattice-grid-monorepo",
   "private": true,
   "version": "1.0.0",
-  "description": "Monorepo for @virtual-grid/core library and demo app",
+  "description": "Monorepo for @lattice-grid/core library and demo app",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build --workspace=packages/virtual-grid",
+    "build": "npm run build --workspace=packages/lattice-grid",
     "dev": "npm run dev --workspace=apps/demo",
-    "test": "npm run test --workspace=packages/virtual-grid",
+    "test": "npm run test --workspace=packages/lattice-grid",
     "lint": "eslint packages apps --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit --project packages/virtual-grid/tsconfig.json"
+    "typecheck": "tsc --noEmit --project packages/lattice-grid/tsconfig.json"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.0.0",

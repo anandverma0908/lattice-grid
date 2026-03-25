@@ -5,7 +5,7 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  VirtualGrid,
+  LatticeGrid,
   GridPagination,
   useRowSelection,
   useColumnFilter,
@@ -15,7 +15,7 @@ import {
   type ColumnDef,
   type LeafColumnDef,
   type ThemePreset,
-} from '@virtual-grid/core';
+} from '@lattice-grid/core';
 import { generateInventoryData, type InventoryRow } from '../data/inventory';
 
 const ALL_DATA = generateInventoryData(2000);
@@ -313,7 +313,7 @@ export function AdvancedDemo({ theme }: { theme: ThemePreset }) {
       </div>
 
       {/* ── Grid ──────────────────────────────────────────────────────────── */}
-      <VirtualGrid<InventoryRow>
+      <LatticeGrid<InventoryRow>
         columns={columns}
         data={pagination.pageData}
         getRowId={(r) => r.id}

@@ -1,15 +1,15 @@
 {
-  "name": "@virtual-grid/demo",
+  "name": "@lattice-grid/demo",
   "private": true,
   "version": "0.0.1",
-  "description": "Demo / documentation site for @virtual-grid/core",
+  "description": "Demo / documentation site for @lattice-grid/core",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@virtual-grid/core": "*",
+    "@lattice-grid/core": "*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

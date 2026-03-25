@@ -1,10 +1,10 @@
 // =============================================================================
-//  VirtualGrid — Documentation  (publish-ready)
+//  LatticeGrid — Documentation  (publish-ready)
 // =============================================================================
 
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
-  VirtualGrid,
+  LatticeGrid,
   GRID_THEMES,
   type ThemePreset,
   type GridEngine,
@@ -12,7 +12,7 @@ import {
   type SortState,
   type ColumnState,
   type ColumnManagerRenderProps,
-} from '@virtual-grid/core';
+} from '@lattice-grid/core';
 import { generateInventoryData, type InventoryRow } from '../data/inventory';
 import { INVENTORY_COLUMNS } from '../data/columns';
 
@@ -166,7 +166,7 @@ function LiveGrid(props: {
   const { height = 240, theme = 'light', columns = INVENTORY_COLUMNS, data = DATA200, ...rest } = props;
   return (
     <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid var(--doc-bdr)', margin: '12px 0' }}>
-      <VirtualGrid<InventoryRow>
+      <LatticeGrid<InventoryRow>
         columns={columns as ColumnDef<InventoryRow>[]}
         data={data}
         theme={theme}
@@ -504,7 +504,7 @@ export function Docs({ isDark }: { isDark: boolean }) {
               </div>
               <div>
                 <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-.04em', margin: 0, color: txt }}>
-                  VirtualGrid
+                  LatticeGrid
                 </h1>
                 <span style={{ fontSize: 12, color: dim }}>v2.1 — React data grid</span>
               </div>
@@ -538,18 +538,18 @@ export function Docs({ isDark }: { isDark: boolean }) {
 
           {/* ── INSTALLATION ───────────────────────────────────────────────── */}
           <Section id="install" title="Installation">
-            <Code lang="bash">{`npm install @virtual-grid/core
+            <Code lang="bash">{`npm install @lattice-grid/core
 # yarn
-yarn add @virtual-grid/core
+yarn add @lattice-grid/core
 # pnpm
-pnpm add @virtual-grid/core`}</Code>
+pnpm add @lattice-grid/core`}</Code>
             <Callout type="info">Requires React 18 or later. No other runtime dependencies.</Callout>
           </Section>
 
           {/* ── QUICK START ────────────────────────────────────────────────── */}
           <Section id="quickstart" title="Quick start"
-            subtitle="The minimum working setup. Import VirtualGrid, define columns, pass data.">
-            <Code>{`import { VirtualGrid } from '@virtual-grid/core';
+            subtitle="The minimum working setup. Import LatticeGrid, define columns, pass data.">
+            <Code>{`import { LatticeGrid } from '@lattice-grid/core';
 
 // 1. Define your row type
 interface Product {
@@ -569,7 +569,7 @@ const columns = [
 // 3. Render
 export function MyPage() {
   return (
-    <VirtualGrid<Product>
+    <LatticeGrid<Product>
       columns={columns}
       data={rows}
       height={500}
@@ -585,7 +585,7 @@ export function MyPage() {
           {/* ── COLUMN DEFINITIONS ─────────────────────────────────────────── */}
           <Section id="col-defs" title="Column definitions"
             subtitle="Every property a leaf column supports. All properties except id and label are optional.">
-            <Code>{`import type { ColumnDef } from '@virtual-grid/core';
+            <Code>{`import type { ColumnDef } from '@lattice-grid/core';
 
 const columns: ColumnDef<MyRow>[] = [
   {
@@ -699,7 +699,7 @@ engine.pinColumn('name', null);     // unpin
           <Section id="col-resize" title="Column resize"
             subtitle="Drag the handle on the right edge of any header cell to resize. Respects minWidth and maxWidth per column.">
             <Code>{`// Resize is enabled by default. Disable globally:
-<VirtualGrid features={{ resize: false }} />
+<LatticeGrid features={{ resize: false }} />
 
 // Disable for a specific column:
 { id: 'id', label: 'ID', resizable: false }
@@ -708,7 +708,7 @@ engine.pinColumn('name', null);     // unpin
 { id: 'name', label: 'Name', width: 200, minWidth: 80, maxWidth: 500 }
 
 // Callback when user finishes resizing:
-<VirtualGrid
+<LatticeGrid
   onColumnResize={(columnId, newWidth) => {
     saveUserPreference(columnId, newWidth);
   }}
@@ -723,13 +723,13 @@ engine.pinColumn('name', null);     // unpin
           <Section id="col-reorder" title="Drag reorder"
             subtitle="Drag any column header left or right to change its position. Works across pinned and scrollable columns.">
             <Code>{`// Enabled by default. Disable globally:
-<VirtualGrid features={{ reorder: false }} />
+<LatticeGrid features={{ reorder: false }} />
 
 // Disable for a specific column:
 { id: 'id', label: 'ID', draggable: false }
 
 // Callback with new order:
-<VirtualGrid
+<LatticeGrid
   onColumnReorder={(newOrder) => {
     // newOrder = ['product', 'dc', 'channel', ...]  (array of column ids)
     saveColumnOrder(newOrder);
@@ -741,7 +741,7 @@ engine.pinColumn('name', null);     // unpin
           <Section id="col-hide" title="Show / hide columns"
             subtitle="Hover any column header to reveal the × hide button. Show hidden columns via the column manager panel or programmatically.">
             <Code>{`// Hide button on hover is enabled by default. Disable:
-<VirtualGrid features={{ columnHide: false }} />
+<LatticeGrid features={{ columnHide: false }} />
 
 // Disable for a specific column (can't be hidden):
 { id: 'id', label: 'ID', hideable: false }
@@ -760,7 +760,7 @@ engine.showAllColumns();
           <Section id="col-freeze" title="Auto-freeze column"
             subtitle="Specify a column that visually freezes when it scrolls behind the pinned-left band. The engine state is never mutated — virtualisation is completely unaffected.">
             <Code>{`// Pass the id of the column you want to auto-freeze
-<VirtualGrid
+<LatticeGrid
   freezeColId="dc"   // 'dc' column freezes as you scroll right
 />
 
@@ -842,7 +842,7 @@ function MyColumnPanel({ engine, onClose }) {
               {/* Live demo: column manager in a sidebar */}
               <div style={{ display: 'flex', gap: 10, height: 260, margin: '12px 0' }}>
                 <div style={{ flex: 1, overflow: 'hidden', borderRadius: 8, border: `1px solid ${bdr}` }}>
-                  <VirtualGrid<InventoryRow>
+                  <LatticeGrid<InventoryRow>
                     columns={simpleColumns}
                     data={DATA200.slice(0, 40)}
                     height={260}
@@ -874,13 +874,13 @@ function MyColumnPanel({ engine, onClose }) {
             subtitle="Click any sortable column header to sort. Cycles through: ascending → descending → unsorted.">
             <Code>{`// Sorting is enabled by default on all columns.
 // Disable globally:
-<VirtualGrid features={{ sort: false }} />
+<LatticeGrid features={{ sort: false }} />
 
 // Disable on a specific column:
 { id: 'actions', label: 'Actions', sortable: false }
 
 // Callback when sort changes:
-<VirtualGrid
+<LatticeGrid
   onSortChange={({ columnId, direction }) => {
     console.log(columnId, direction); // 'stock', 'desc'
   }}
@@ -922,7 +922,7 @@ function MyColumnPanel({ engine, onClose }) {
   };
 
   return (
-    <VirtualGrid
+    <LatticeGrid
       sortMode="server"        // ← disable internal sort
       data={data}              // ← your pre-sorted server data
       loading={loading}        // ← show spinner while fetching
@@ -953,7 +953,7 @@ function MyColumnPanel({ engine, onClose }) {
               {sortLog}
             </div>
             <div style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${bdr}` }}>
-              <VirtualGrid<InventoryRow>
+              <LatticeGrid<InventoryRow>
                 columns={simpleColumns}
                 data={serverData}
                 height={220}
@@ -978,7 +978,7 @@ function MyColumnPanel({ engine, onClose }) {
           <Section id="row-select" title="Row selection"
             subtitle="Click any row — pinned or scrollable — to select it. The same highlight is applied across the entire row. Click again to deselect.">
             <Code>{`// Row selection is enabled by default.
-<VirtualGrid
+<LatticeGrid
   features={{ rowSelection: true }}
   onRowClick={(row, index) => {
     console.log('selected:', row, 'at index', index);
@@ -986,14 +986,14 @@ function MyColumnPanel({ engine, onClose }) {
 />
 
 // Customise selected row appearance:
-<VirtualGrid
+<LatticeGrid
   theme={{ '--vg-bg-row-selected': '#fef9c3' }}
   styles={{ rowSelected: { fontWeight: 600 } }}
   classNames={{ rowSelected: 'my-selected-row' }}
 />
 
 // Disable if you only want onClick without highlight:
-<VirtualGrid features={{ rowSelection: false }} onRowClick={handler} />`}</Code>
+<LatticeGrid features={{ rowSelection: false }} onRowClick={handler} />`}</Code>
             <LiveGrid height={220} columns={simpleColumns} data={DATA200.slice(0, 40)}
               features={{ footer: false }}
               onRowClick={() => {}} />
@@ -1103,10 +1103,10 @@ function MyColumnPanel({ engine, onClose }) {
 
             <SubSection title="Token overrides">
               <Code>{`// Option 1 — named preset
-<VirtualGrid theme="dark" />
+<LatticeGrid theme="dark" />
 
 // Option 2 — partial override (merges on top of 'light')
-<VirtualGrid
+<LatticeGrid
   theme={{
     '--vg-accent':          '#7c3aed',
     '--vg-accent-bg':       '#ede9fe',
@@ -1118,9 +1118,9 @@ function MyColumnPanel({ engine, onClose }) {
 />
 
 // Option 3 — start from a preset and override
-import { GRID_THEMES } from '@virtual-grid/core';
+import { GRID_THEMES } from '@lattice-grid/core';
 
-<VirtualGrid
+<LatticeGrid
   theme={{ ...GRID_THEMES.dark, '--vg-accent': '#a855f7' }}
 />`}</Code>
             </SubSection>
@@ -1129,7 +1129,7 @@ import { GRID_THEMES } from '@virtual-grid/core';
           {/* ── FEATURE FLAGS ──────────────────────────────────────────────── */}
           <Section id="features" title="Feature flags"
             subtitle="Turn individual capabilities on or off. All default to true. Per-column sortable/resizable/draggable/hideable override the grid-level flags.">
-            <Code>{`<VirtualGrid
+            <Code>{`<LatticeGrid
   features={{
     sort:          true,    // header click to sort (asc → desc → clear)
     resize:        true,    // drag resize handle on column headers
@@ -1160,7 +1160,7 @@ import { GRID_THEMES } from '@virtual-grid/core';
             subtitle="Replace any built-in SVG icon with your own ReactNode. Works with any icon library, inline SVG, or emoji.">
             <Code>{`import { ChevronUp, ChevronDown, EyeOff, Columns } from 'lucide-react';
 
-<VirtualGrid
+<LatticeGrid
   icons={{
     sortAsc:      <ChevronUp size={10} />,
     sortDesc:     <ChevronDown size={10} />,
@@ -1188,7 +1188,7 @@ import { GRID_THEMES } from '@virtual-grid/core';
 .my-row-selected   { background: #fef9c3 !important; font-weight: 600; }
 .my-cell           { font-variant-numeric: tabular-nums; }
 .my-footer         { font-style: italic; }`}</Code>
-            <Code>{`<VirtualGrid
+            <Code>{`<LatticeGrid
   classNames={{
     root:         'my-grid',
     toolbar:      'my-toolbar',
@@ -1209,7 +1209,7 @@ import { GRID_THEMES } from '@virtual-grid/core';
           {/* ── STYLE OVERRIDES ────────────────────────────────────────────── */}
           <Section id="styles" title="Style overrides"
             subtitle="Apply CSSProperties directly to any grid region. Applied on top of token styles. Use when you need structural changes beyond what tokens offer.">
-            <Code>{`<VirtualGrid
+            <Code>{`<LatticeGrid
   styles={{
     root:           { borderRadius: 0, border: 'none' },
     toolbar:        { padding: '10px 16px' },
@@ -1229,7 +1229,7 @@ import { GRID_THEMES } from '@virtual-grid/core';
           {/* ── SLOTS ──────────────────────────────────────────────────────── */}
           <Section id="slots" title="Slots"
             subtitle="Replace entire UI sections with your own components. Every slot receives the grid engine so your component is fully interactive.">
-            <Code>{`<VirtualGrid
+            <Code>{`<LatticeGrid
   slots={{
     // Replace entire toolbar — engine gives full control
     toolbar: (engine) => (
@@ -1281,7 +1281,7 @@ import { GRID_THEMES } from '@virtual-grid/core';
           <Section id="persistence" title="Persistence"
             badge={{ text: 'onColumnStateChange', color: '#16a34a' }}
             subtitle="Save column layout to your API whenever the user changes it. Restore on next visit by applying the saved state on mount.">
-            <Code>{`import { type ColumnState } from '@virtual-grid/core';
+            <Code>{`import { type ColumnState } from '@lattice-grid/core';
 
 // ColumnState shape:
 // { id: string, hidden: boolean, pinned: PinSide|null, width: number, order: number }
@@ -1301,7 +1301,7 @@ function MyGrid() {
   }, []);
 
   return (
-    <VirtualGrid
+    <LatticeGrid
       columns={columns}
       data={data}
       onColumnStateChange={handleStateChange}
@@ -1376,7 +1376,7 @@ function MyGrid() {
   useVirtualCols,
   buildColumnOffsets,
   calcColWindow,
-} from '@virtual-grid/core';
+} from '@lattice-grid/core';
 
 function MyCustomGrid({ columns, data }) {
   const engine = useGridEngine(columns);
@@ -1465,7 +1465,7 @@ vRows.totalHeight // total canvas height (rowCount × rowHeight)`}</Code>
             </SubSection>
 
             <SubSection title="calcColWindow / useVirtualCols">
-              <Code>{`import { calcColWindow, buildColumnOffsets } from '@virtual-grid/core';
+              <Code>{`import { calcColWindow, buildColumnOffsets } from '@lattice-grid/core';
 
 const offsets = buildColumnOffsets(scrollableColumns);
 const widths  = scrollableColumns.map(c => c.width);
@@ -1480,7 +1480,7 @@ const { startIndex, endIndex } = calcColWindow(
             </SubSection>
 
             <SubSection title="useRowSelection">
-              <Code>{`import { useRowSelection } from '@virtual-grid/core';
+              <Code>{`import { useRowSelection } from '@lattice-grid/core';
 
 const sel = useRowSelection({
   data,
@@ -1502,7 +1502,7 @@ sel.handleRowClick(row, index, event)`}</Code>
             </SubSection>
 
             <SubSection title="useColumnFilter">
-              <Code>{`import { useColumnFilter } from '@virtual-grid/core';
+              <Code>{`import { useColumnFilter } from '@lattice-grid/core';
 
 const filter = useColumnFilter({ data, columns: leafColumns });
 
@@ -1525,12 +1525,12 @@ useColumnFilter({
             </SubSection>
 
             <SubSection title="useGridPagination">
-              <Code>{`import { useGridPagination, GridPagination } from '@virtual-grid/core';
+              <Code>{`import { useGridPagination, GridPagination } from '@lattice-grid/core';
 
 // Client-side
 const page = useGridPagination({ data: allRows, pageSize: 100 });
 
-<VirtualGrid data={page.pageData} />
+<LatticeGrid data={page.pageData} />
 <GridPagination {...page} />
 
 // Server-side
@@ -1545,7 +1545,7 @@ page.setPageSize(n)`}</Code>
             </SubSection>
 
             <SubSection title="useGridExport">
-              <Code>{`import { useGridExport } from '@virtual-grid/core';
+              <Code>{`import { useGridExport } from '@lattice-grid/core';
 
 const exporter = useGridExport({
   data:    sortedFilteredData,
@@ -1563,7 +1563,7 @@ exporter.getJSONString();`}</Code>
           <Section id="virtualisation" title="How virtualisation works"
             subtitle="Understanding the rendering architecture helps when building custom grids or debugging performance.">
             <p style={{ fontSize: 13, lineHeight: 1.8, color: dim, marginBottom: 12 }}>
-              VirtualGrid uses a <strong style={{ color: txt }}>two-layer rendering model</strong>:
+              LatticeGrid uses a <strong style={{ color: txt }}>two-layer rendering model</strong>:
             </p>
             <Code lang="text">{`grid-root  (overflow: hidden, flex column)
   toolbar
@@ -1602,7 +1602,7 @@ exporter.getJSONString();`}</Code>
 
           {/* ── PROPS REFERENCE ────────────────────────────────────────────── */}
           <Section id="ref-props" title="Props reference"
-            subtitle="Every prop the VirtualGrid component accepts.">
+            subtitle="Every prop the LatticeGrid component accepts.">
             <PropsTable>
               <PropRow prop="columns"              type="ColumnDef<TData>[]"        def="required"   desc="Column definitions array. Supports flat and grouped arrays." />
               <PropRow prop="data"                 type="TData[]"                   def="required"   desc="Row data array." />
@@ -1679,7 +1679,7 @@ exporter.getJSONString();`}</Code>
             subtitle="All exported TypeScript types.">
             <Code>{`// Core types
 import type {
-  VirtualGridProps,         // main component props
+  LatticeGridProps,         // main component props
   ColumnDef,                // LeafColumnDef | GroupColumnDef
   LeafColumnDef,
   GroupColumnDef,
@@ -1703,7 +1703,7 @@ import type {
   // Virtualisation
   VirtualRowWindow,
   VirtualColWindow,
-} from '@virtual-grid/core';`}</Code>
+} from '@lattice-grid/core';`}</Code>
           </Section>
 
         </div>
