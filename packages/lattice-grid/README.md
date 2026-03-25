@@ -169,47 +169,6 @@ function MyCustomGrid({ columns, data }) {
 
 ---
 
-## Repository structure
-
-```
-lattice-grid/
-├── packages/
-│   └── lattice-grid/           @lattice-grid-lib/core (the library)
-│       ├── src/
-│       │   ├── core/
-│       │   │   ├── useGridEngine.ts     Pure state machine
-│       │   │   ├── GridContext.ts       React context
-│       │   │   └── themes.ts           Token system
-│       │   ├── hooks/
-│       │   │   ├── useVirtualizer.ts   Row + column windowing
-│       │   │   ├── useColumnResize.ts  Drag-resize hook
-│       │   │   └── useColumnDrag.ts    Drag-reorder hook
-│       │   ├── components/
-│       │   │   ├── LatticeGrid.tsx     Main component
-│       │   │   ├── HeaderCell.tsx
-│       │   │   ├── Cells.tsx
-│       │   │   ├── ColumnManager.tsx
-│       │   │   └── Toolbar.tsx
-│       │   ├── types/
-│       │   │   └── index.ts            All public types
-│       │   └── index.ts                Public API barrel
-│       ├── package.json
-│       ├── vite.config.ts
-│       └── tsconfig.json
-└── apps/
-    └── demo/                   Documentation + live demo site
-        ├── src/
-        │   ├── App.tsx
-        │   ├── data/
-        │   │   ├── inventory.ts        Demo data factory
-        │   │   └── columns.tsx         Demo column defs
-        │   └── components/
-        │       └── CodeBlock.tsx
-        └── index.html
-```
-
----
-
 ## Development
 
 ```bash
