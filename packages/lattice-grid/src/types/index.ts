@@ -253,6 +253,24 @@ export interface GridSlots<TData = unknown> {
   }) => ReactNode;
   emptyState?: ReactNode;
   loadingOverlay?: ReactNode;
+  /**
+   * Render an overlay element inside a selected row.
+   * Receives the clicked row data and its index.
+   * Position it however you like — the row has `position: relative`.
+   *
+   * @example
+   * slots={{
+   *   rowSelectionIndicator: (row, index) => (
+   *     <div style={{
+   *       position: "absolute", bottom: 0, left: 0,
+   *       width: "100%", height: "0.08rem",
+   *       background: "linear-gradient(to right, #F9B16E, #F68080)",
+   *       pointerEvents: "none", zIndex: 1,
+   *     }} />
+   *   )
+   * }}
+   */
+  rowSelectionIndicator?: (row: TData, index: number) => ReactNode;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

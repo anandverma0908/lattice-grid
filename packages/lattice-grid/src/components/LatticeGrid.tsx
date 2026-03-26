@@ -809,6 +809,7 @@ function LatticeGridInner<TData = unknown>({
           display: "flex",
           ...styles.row,
           ...(isSel ? styles.rowSelected : {}),
+          overflow: "hidden",
         }}
         onMouseEnter={(e) => {
           if (!isSel) {
@@ -870,6 +871,7 @@ function LatticeGridInner<TData = unknown>({
           </div>
         )}
         {cells}
+        {isSel && slots.rowSelectionIndicator?.(row, rowIndex)}
       </div>
     );
   };
@@ -908,6 +910,7 @@ function LatticeGridInner<TData = unknown>({
             height: rowHeight,
             background: frozenBg,
             cursor: "pointer",
+            overflow: "hidden",
             ...styles.row,
             ...(isSel ? styles.rowSelected : {}),
           }}
@@ -934,6 +937,7 @@ function LatticeGridInner<TData = unknown>({
               zIndex: 2,
             }}
           />
+          {isSel && slots.rowSelectionIndicator?.(row, ri)}
         </div>,
       );
     }
