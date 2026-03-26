@@ -561,11 +561,12 @@ function LatticeGridInner<TData = unknown>({
         return (styles.rowSelected?.background as string | undefined) ??
           (styles.rowSelected?.backgroundColor as string | undefined) ??
           "var(--vg-bg-row-selected)";
-      return features.alternateRows && ri % 2 === 1
-        ? "var(--vg-bg-row-alt)"
-        : "var(--vg-bg)";
+      if (features.alternateRows && ri % 2 === 1) return "var(--vg-bg-row-alt)";
+      return (styles.row?.background as string | undefined) ??
+        (styles.row?.backgroundColor as string | undefined) ??
+        "var(--vg-bg)";
     },
-    [isRowSelected, features.alternateRows, styles.rowSelected],
+    [isRowSelected, features.alternateRows, styles.rowSelected, styles.row],
   );
 
   const pinnedRowBg = useCallback(
@@ -575,9 +576,12 @@ function LatticeGridInner<TData = unknown>({
           (styles.rowSelected?.backgroundColor as string | undefined) ??
           "var(--vg-bg-row-selected)";
       if (features.alternateRows && ri % 2 === 1) return "var(--vg-bg-row-alt)";
-      return "var(--vg-bg-pinned)";
+      return (styles.pinnedCell?.background as string | undefined) ??
+        (styles.pinnedCell?.backgroundColor as string | undefined) ??
+        (styles.row?.background as string | undefined) ??
+        "var(--vg-bg-pinned)";
     },
-    [isRowSelected, features.alternateRows, styles.rowSelected],
+    [isRowSelected, features.alternateRows, styles.rowSelected, styles.row, styles.pinnedCell],
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
