@@ -557,21 +557,27 @@ function LatticeGridInner<TData = unknown>({
 
   const rowBg = useCallback(
     (row: TData, ri: number) => {
-      if (isRowSelected(row, ri)) return "var(--vg-bg-row-selected)";
+      if (isRowSelected(row, ri))
+        return (styles.rowSelected?.background as string | undefined) ??
+          (styles.rowSelected?.backgroundColor as string | undefined) ??
+          "var(--vg-bg-row-selected)";
       return features.alternateRows && ri % 2 === 1
         ? "var(--vg-bg-row-alt)"
         : "var(--vg-bg)";
     },
-    [isRowSelected, features.alternateRows],
+    [isRowSelected, features.alternateRows, styles.rowSelected],
   );
 
   const pinnedRowBg = useCallback(
     (row: TData, ri: number) => {
-      if (isRowSelected(row, ri)) return "var(--vg-bg-row-selected)";
+      if (isRowSelected(row, ri))
+        return (styles.rowSelected?.background as string | undefined) ??
+          (styles.rowSelected?.backgroundColor as string | undefined) ??
+          "var(--vg-bg-row-selected)";
       if (features.alternateRows && ri % 2 === 1) return "var(--vg-bg-row-alt)";
       return "var(--vg-bg-pinned)";
     },
-    [isRowSelected, features.alternateRows],
+    [isRowSelected, features.alternateRows, styles.rowSelected],
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -809,7 +815,6 @@ function LatticeGridInner<TData = unknown>({
           display: "flex",
           ...styles.row,
           ...(isSel ? styles.rowSelected : {}),
-          overflow: "hidden",
         }}
         onMouseEnter={(e) => {
           if (!isSel) {
@@ -891,7 +896,9 @@ function LatticeGridInner<TData = unknown>({
       const rowKey = getRowId ? String(getRowId(row, ri)) : String(ri);
       const isSel = isRowSelected(row, ri);
       const frozenBg = isSel
-        ? "var(--vg-bg-row-selected)"
+        ? ((styles.rowSelected?.background as string | undefined) ??
+            (styles.rowSelected?.backgroundColor as string | undefined) ??
+            "var(--vg-bg-row-selected)")
         : "var(--vg-bg-frozen, var(--vg-bg-row-alt))";
       rows.push(
         <div
@@ -937,7 +944,11 @@ function LatticeGridInner<TData = unknown>({
               zIndex: 2,
             }}
           />
-          {isSel && slots.rowSelectionIndicator?.(row, ri)}
+          {isSel && (
+            <div style={{ position: "absolute", inset: 0, zIndex: 3, pointerEvents: "none" }}>
+              {slots.rowSelectionIndicator?.(row, ri)}
+            </div>
+          )}
         </div>,
       );
     }
