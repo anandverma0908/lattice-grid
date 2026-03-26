@@ -247,13 +247,21 @@ function buildInitialState<TData>(
 export function useGridEngine<TData>(
   columnDefs: ColumnDef<TData>[],
 ): GridEngine<TData> {
-  // Memoize the initial static data derived from column defs.
-  // columnDefs reference must be stable (useMemo at call site if dynamic).
-  const { leaves, groups, initial } = useMemo(() => {
+  // Compute reducer initial state only once at mount.
+  // colMap / colOrder are mutable runtime state managed by the reducer.
+  const { initial } = useMemo(() => {
     const result = buildInitialState(columnDefs);
-    return { ...result, initial: result.internal };
+    return { initial: result.internal };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally only on mount — dynamic columns require external key
+  }, []); // intentionally only on mount — preserves user's resize/reorder/hide state
+
+  // Keep leaves and groups always in sync with the latest columnDefs.
+  // This ensures renderCell, renderHeader, label etc. are never stale
+  // even when the caller passes updated column definitions.
+  const { leaves, groups } = useMemo(
+    () => flattenColumnDefs(columnDefs),
+    [columnDefs],
+  );
 
   const [state, dispatch] = useReducer(reducer, initial);
 
