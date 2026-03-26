@@ -50,24 +50,40 @@ export interface UseVirtualRowsOptions {
   viewportHeight: number;
 }
 
+/**
+ * computeVRows
+ *
+ * Pure function. Call this directly from a scroll event handler using the
+ * live DOM scrollTop value to avoid React state latency — identical to the
+ * pattern used by calcColWindow for horizontal virtualization.
+ */
+export function computeVRows(
+  rowCount:       number,
+  rowHeight:      number,
+  scrollTop:      number,
+  viewportHeight: number,
+): VirtualRowWindow {
+  if (rowCount === 0 || viewportHeight <= 0) {
+    return { startIndex: 0, endIndex: -1, totalHeight: rowCount * rowHeight, offsetY: 0 };
+  }
+  const totalHeight  = rowCount * rowHeight;
+  const firstVisible = Math.floor(scrollTop / rowHeight);
+  const startIndex   = Math.max(0, firstVisible - OVERSCAN_ROWS);
+  const visibleCount = Math.ceil(viewportHeight / rowHeight);
+  const endIndex     = Math.min(rowCount - 1, firstVisible + visibleCount + OVERSCAN_ROWS);
+  return { startIndex, endIndex, totalHeight, offsetY: startIndex * rowHeight };
+}
+
 export function useVirtualRows({
   rowCount,
   rowHeight,
   scrollTop,
   viewportHeight,
 }: UseVirtualRowsOptions): VirtualRowWindow {
-  return useMemo((): VirtualRowWindow => {
-    if (rowCount === 0 || viewportHeight <= 0) {
-      return { startIndex: 0, endIndex: -1, totalHeight: 0, offsetY: 0 };
-    }
-    const totalHeight   = rowCount * rowHeight;
-    const firstVisible  = Math.floor(scrollTop / rowHeight);
-    const startIndex    = Math.max(0, firstVisible - OVERSCAN_ROWS);
-    const visibleCount  = Math.ceil(viewportHeight / rowHeight);
-    const endIndex      = Math.min(rowCount - 1, firstVisible + visibleCount + OVERSCAN_ROWS);
-    const offsetY       = startIndex * rowHeight;
-    return { startIndex, endIndex, totalHeight, offsetY };
-  }, [rowCount, rowHeight, scrollTop, viewportHeight]);
+  return useMemo(
+    () => computeVRows(rowCount, rowHeight, scrollTop, viewportHeight),
+    [rowCount, rowHeight, scrollTop, viewportHeight],
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

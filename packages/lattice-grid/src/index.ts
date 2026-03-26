@@ -18,6 +18,7 @@ export {
   useVirtualCols,
   buildColumnOffsets,
   calcColWindow,
+  computeVRows,
 } from "./hooks/useVirtualizer";
 export { useColumnResize } from "./hooks/useColumnResize";
 export { useColumnDrag } from "./hooks/useColumnDrag";

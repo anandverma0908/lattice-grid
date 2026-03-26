@@ -16,13 +16,14 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   type CSSProperties,
 } from "react";
 import { useGridEngine } from "../core/useGridEngine";
 import {
-  useVirtualRows,
+  computeVRows,
   calcColWindow,
   buildColumnOffsets,
 } from "../hooks/useVirtualizer";
@@ -41,6 +42,7 @@ import type {
   GridIcons,
   GridStyles,
   GridClassNames,
+  VirtualRowWindow,
 } from "../types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -230,9 +232,13 @@ function LatticeGridInner<TData = unknown>({
   // ── Scroll ───────────────────────────────────────────────────────────────────
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollLeftRef = useRef(0);
-  const scrollTopRef = useRef(0);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
+  const scrollTopRef  = useRef(0);
+  // Single render-trigger — replaces the two setState calls (scrollTop/scrollLeft).
+  // All scroll-driven geometry is computed synchronously into refs before this fires.
+  const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
+  // RAF handle — ensures we trigger at most one React render per animation frame
+  // even when the browser fires many scroll events per frame (high-refresh displays).
+  const rafRef = useRef(0);
   // Direct DOM ref for the frozen-column body only — updated synchronously in
   // scroll handler. Regular pinned body rows live inside the scroll container
   // (sticky positioning) and require no JS sync at all.
@@ -291,6 +297,27 @@ function LatticeGridInner<TData = unknown>({
   );
   const canvasW = pinnedLeftWidth + totalScrollW + pinnedRightWidth;
 
+  // ── Row window (synchronous ref — same strategy as vColsRef) ────────────────
+  // Computed synchronously in every scroll event so the render that follows
+  // always uses the CURRENT scroll position, not a stale state value.
+  const vRowsRef = useRef<VirtualRowWindow>({
+    startIndex: 0,
+    endIndex:   -1,
+    totalHeight: 0,
+    offsetY:    0,
+  });
+  const recomputeVRows = useCallback(
+    (st: number) => {
+      vRowsRef.current = computeVRows(
+        sortedData.length,
+        rowHeight,
+        st,
+        Math.max(0, bodyWrapH - totalHeaderHeight),
+      );
+    },
+    [sortedData.length, rowHeight, bodyWrapH, totalHeaderHeight],
+  );
+
   // ── Column window (synchronous ref) ──────────────────────────────────────────
   const vColsRef = useRef({ startIndex: 0, endIndex: 0 });
   const recomputeVCols = useCallback(
@@ -348,10 +375,12 @@ function LatticeGridInner<TData = unknown>({
   const handleScroll = useCallback(() => {
     const el = scrollAreaRef.current;
     if (!el) return;
-    const st = el.scrollTop,
-      sl = el.scrollLeft;
-    scrollTopRef.current = st;
+    const st = el.scrollTop;
+    const sl = el.scrollLeft;
+    scrollTopRef.current  = st;
     scrollLeftRef.current = sl;
+    // All geometry computed synchronously — refs are up-to-date before React renders.
+    recomputeVRows(st);
     recomputeVCols(sl);
     recomputeFrozen(sl);
     // Toggle frozen-column body visibility directly — same frame as scroll
@@ -362,14 +391,17 @@ function LatticeGridInner<TData = unknown>({
       pinLeftBodyRef.current.style.visibility = isFrozen ? "visible" : "hidden";
       pinLeftBodyRef.current.style.pointerEvents = isFrozen ? "auto" : "none";
     }
-    setScrollTop(st);
-    setScrollLeft(sl);
-  }, [recomputeVCols, recomputeFrozen]);
+    // One RAF-throttled render per animation frame — prevents scheduling N renders
+    // when the browser fires N scroll events in a single 16ms frame.
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(forceUpdate);
+  }, [recomputeVRows, recomputeVCols, recomputeFrozen, forceUpdate]);
 
   useEffect(() => {
+    recomputeVRows(scrollTopRef.current);
     recomputeVCols(scrollLeftRef.current);
     recomputeFrozen(scrollLeftRef.current);
-  }, [recomputeVCols, recomputeFrozen]);
+  }, [recomputeVRows, recomputeVCols, recomputeFrozen]);
 
   // Non-passive wheel listener on pinned layer wrappers.
   // React attaches all wheel listeners as passive — calling e.preventDefault()
@@ -419,12 +451,10 @@ function LatticeGridInner<TData = unknown>({
   const frozenWidth = frozenColDef?.width ?? 0;
 
   // ── Row virtualisation ────────────────────────────────────────────────────────
-  const vRows = useVirtualRows({
-    rowCount: sortedData.length,
-    rowHeight,
-    scrollTop,
-    viewportHeight: Math.max(0, bodyWrapH - totalHeaderHeight),
-  });
+  // vRowsRef is always current (updated synchronously in handleScroll and the
+  // sync effect above). Reading the ref here is safe — it holds the latest window
+  // for the scroll position that triggered this render.
+  const vRows = vRowsRef.current;
 
   // ── Ungrouped scrollable → rowspan=2 ─────────────────────────────────────────
   const ungroupedIds = useMemo(() => {
