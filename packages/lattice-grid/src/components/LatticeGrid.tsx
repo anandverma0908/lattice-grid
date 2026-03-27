@@ -239,6 +239,13 @@ function LatticeGridInner<TData = unknown>({
   // RAF handle — ensures we trigger at most one React render per animation frame
   // even when the browser fires many scroll events per frame (high-refresh displays).
   const rafRef = useRef(0);
+
+  // Deferred-rendering scroll state. True while the user is actively scrolling.
+  // Reset 150 ms after the last scroll event so deferred cells render after the
+  // grid comes to rest. Stored in a ref (not state) so it doesn't add an extra
+  // render during scrolling — we read the current value on each RAF render.
+  const isScrollingRef = useRef(false);
+  const scrollStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Direct DOM ref for the frozen-column body only — updated synchronously in
   // scroll handler. Regular pinned body rows live inside the scroll container
   // (sticky positioning) and require no JS sync at all.
@@ -391,6 +398,15 @@ function LatticeGridInner<TData = unknown>({
       pinLeftBodyRef.current.style.visibility = isFrozen ? "visible" : "hidden";
       pinLeftBodyRef.current.style.pointerEvents = isFrozen ? "auto" : "none";
     }
+    // Mark as scrolling so deferred cells show their placeholder.
+    isScrollingRef.current = true;
+    // Reset 150 ms after the last scroll event so deferred cells re-render
+    // with real content once the grid comes to rest.
+    if (scrollStopTimerRef.current) clearTimeout(scrollStopTimerRef.current);
+    scrollStopTimerRef.current = setTimeout(() => {
+      isScrollingRef.current = false;
+      forceUpdate();
+    }, 150);
     // One RAF-throttled render per animation frame — prevents scheduling N renders
     // when the browser fires N scroll events in a single 16ms frame.
     cancelAnimationFrame(rafRef.current);
@@ -455,6 +471,7 @@ function LatticeGridInner<TData = unknown>({
   // sync effect above). Reading the ref here is safe — it holds the latest window
   // for the scroll position that triggered this render.
   const vRows = vRowsRef.current;
+  const isScrolling = isScrollingRef.current;
 
   // ── Ungrouped scrollable → rowspan=2 ─────────────────────────────────────────
   const ungroupedIds = useMemo(() => {
@@ -465,11 +482,21 @@ function LatticeGridInner<TData = unknown>({
   }, [groups, scrollableColumns]);
 
   // ── Hooks ─────────────────────────────────────────────────────────────────────
+  const orderedColumnsRef = useRef(engine.orderedColumns);
+  orderedColumnsRef.current = engine.orderedColumns;
+  const onColumnReorderRef = useRef(onColumnReorder);
+  onColumnReorderRef.current = onColumnReorder;
+
+  // Use a ref so the width read at drag-end always reflects the post-drag engine
+  // state, not the stale closure captured at mousedown.
+  const getWidthRef = useRef<(id: string) => number>((id) => 120);
+  getWidthRef.current = (id) =>
+    engine.orderedColumns.find((c) => c.id === id)?.width ?? 120;
+
   const { startResize } = useColumnResize({
     onResize: (id, delta) => resizeColumn(id, delta),
     onResizeEnd: (id, w) => onColumnResize?.(id, w),
-    getCurrentWidth: (id) =>
-      engine.orderedColumns.find((c) => c.id === id)?.width ?? 120,
+    getCurrentWidth: useCallback((id: string) => getWidthRef.current(id), []),
   });
 
   // Mathematical viewport bounds — works for ALL columns including those outside
@@ -515,11 +542,20 @@ function LatticeGridInner<TData = unknown>({
   const dragHandlers = useColumnDrag({
     onMoveColumnBefore: (src, tgt) => {
       moveColumnBefore(src, tgt);
-      onColumnReorder?.(engine.orderedColumns.map((c) => c.id));
+      if (onColumnReorderRef.current) {
+        const ids = orderedColumnsRef.current.map((c) => c.id);
+        const newIds = ids.filter((id) => id !== src);
+        newIds.splice(newIds.indexOf(tgt), 0, src);
+        onColumnReorderRef.current(newIds);
+      }
     },
     onMoveColumnToEnd: (src) => {
       moveColumnToEnd(src);
-      onColumnReorder?.(engine.orderedColumns.map((c) => c.id));
+      if (onColumnReorderRef.current) {
+        const ids = orderedColumnsRef.current.map((c) => c.id);
+        const newIds = [...ids.filter((id) => id !== src), src];
+        onColumnReorderRef.current(newIds);
+      }
     },
     columns: visibleColumns.map((c) => ({
       id: c.id,
@@ -727,6 +763,8 @@ function LatticeGridInner<TData = unknown>({
           key={`ds-${col.id}`}
           column={col}
           row={row}
+          isScrolling={isScrolling}
+          loadingCell={slots.loadingCell}
           style={{
             position: "absolute",
             left: pinnedLeftWidth + (offsets[ci] ?? 0),
@@ -757,6 +795,8 @@ function LatticeGridInner<TData = unknown>({
                 column={col}
                 row={row}
                 pinned
+                isScrolling={isScrolling}
+                loadingCell={slots.loadingCell}
                 style={{
                   position: "absolute",
                   left: colLeft,
@@ -783,6 +823,8 @@ function LatticeGridInner<TData = unknown>({
                 column={col}
                 row={row}
                 pinned
+                isScrolling={isScrolling}
+                loadingCell={slots.loadingCell}
                 style={{
                   position: "absolute",
                   left: colLeft,
@@ -938,6 +980,8 @@ function LatticeGridInner<TData = unknown>({
             column={frozenColDef}
             row={row}
             pinned
+            isScrolling={isScrolling}
+            loadingCell={slots.loadingCell}
             style={{
               position: "absolute",
               left: 0,
