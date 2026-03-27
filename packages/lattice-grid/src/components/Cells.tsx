@@ -2,9 +2,21 @@
 //  @lattice-grid-lib/core — DataCell / GroupHeaderCell / EmptyState
 // =============================================================================
 
-import React, { memo, type CSSProperties, type ReactNode } from "react";
+import { memo, type CSSProperties, type ReactNode } from "react";
 import type { GroupColumnDef, ResolvedColumn } from "../types";
 import { useGridContext } from "../core/GridContext";
+
+// Inject shimmer keyframes once at module load — no runtime overhead per cell.
+if (typeof document !== "undefined") {
+  const id = "vg-shimmer-keyframes";
+  if (!document.getElementById(id)) {
+    const s = document.createElement("style");
+    s.id = id;
+    s.textContent =
+      "@keyframes vg-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}";
+    document.head.appendChild(s);
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  DATA CELL
@@ -17,6 +29,10 @@ interface DataCellProps {
   style: CSSProperties;
   /** Pass true for cells in the pinned overlay layer. */
   pinned?: boolean;
+  /** True while the grid is scrolling — deferred cells show loadingCell instead. */
+  isScrolling?: boolean;
+  /** Custom placeholder rendered in deferred cells during scroll. */
+  loadingCell?: ReactNode;
 }
 
 function dataCellEqual(
@@ -27,6 +43,7 @@ function dataCellEqual(
     prev.column === next.column &&
     prev.row === next.row &&
     prev.pinned === next.pinned &&
+    prev.isScrolling === next.isScrolling &&
     prev.style.left === next.style.left &&
     prev.style.top === next.style.top &&
     prev.style.width === next.style.width &&
@@ -36,13 +53,53 @@ function dataCellEqual(
   );
 }
 
+// Default shimmer shown in deferred cells while scrolling.
+function ShimmerPlaceholder() {
+  return (
+    <div
+      style={{
+        width: "60%",
+        height: 10,
+        borderRadius: 4,
+        background:
+          "linear-gradient(90deg, var(--vg-border) 25%, var(--vg-bg-row-hover) 50%, var(--vg-border) 75%)",
+        backgroundSize: "200% 100%",
+        animation: "vg-shimmer 1.2s infinite linear",
+      }}
+    />
+  );
+}
+
 export const DataCell = memo(function DataCell({
   column,
   row,
   style,
   pinned = false,
+  isScrolling = false,
+  loadingCell,
 }: DataCellProps) {
   const { styles, classNames } = useGridContext();
+
+  // Deferred rendering: while scrolling, replace slow custom cells with a
+  // lightweight placeholder so the main thread stays unblocked.
+  if (isScrolling && column.deferRender && column.renderCell) {
+    return (
+      <div
+        style={{
+          ...style,
+          position: "absolute",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "0 10px",
+          boxSizing: "border-box",
+          overflow: "hidden",
+        }}
+      >
+        {loadingCell ?? <ShimmerPlaceholder />}
+      </div>
+    );
+  }
 
   const rawValue = column.accessor
     ? column.accessor(row)
@@ -80,6 +137,11 @@ export const DataCell = memo(function DataCell({
           .filter(Boolean)
           .join(" ") || undefined
       }
+      // Stop clicks from bubbling to the row's onClick when the cell has a
+      // custom renderer. Prevents row selection from firing (and re-rendering
+      // with old data) when the user interacts with interactive cell content
+      // like checkboxes, buttons, or inputs.
+      onClick={column.renderCell ? (e) => e.stopPropagation() : undefined}
       style={{
         ...style,
         position: "absolute",

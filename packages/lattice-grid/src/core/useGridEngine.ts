@@ -279,6 +279,7 @@ export function useGridEngine<TData>(
         field: leaf.field,
         accessor: leaf.accessor,
         renderCell: leaf.renderCell,
+        deferRender: leaf.deferRender,
         renderHeader: leaf.renderHeader,
         cellStyle: leaf.cellStyle,
         headerStyle: leaf.headerStyle,

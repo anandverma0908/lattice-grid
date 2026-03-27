@@ -45,6 +45,12 @@ export interface LeafColumnDef<TData = unknown> {
     engine?: GridEngine<TData>,
   ) => ReactNode;
   renderCell?: (value: unknown, row: TData) => ReactNode;
+  /**
+   * When true, cells with a custom renderCell will show a lightweight
+   * placeholder while the grid is scrolling, then render the real content
+   * once scrolling stops. Use this for expensive custom cell components.
+   */
+  deferRender?: boolean;
   align?: "left" | "center" | "right";
   cellStyle?: CSSProperties;
   headerStyle?: CSSProperties;
@@ -79,6 +85,7 @@ export interface ResolvedColumn<TData = any> {
   field?: keyof TData & string;
   accessor?: (row: TData) => unknown;
   renderCell?: LeafColumnDef<TData>["renderCell"];
+  deferRender?: boolean;
   renderHeader?: LeafColumnDef<TData>["renderHeader"];
   cellStyle?: CSSProperties;
   headerStyle?: CSSProperties;
@@ -253,6 +260,11 @@ export interface GridSlots<TData = unknown> {
   }) => ReactNode;
   emptyState?: ReactNode;
   loadingOverlay?: ReactNode;
+  /**
+   * Rendered in place of a deferred cell while the grid is scrolling.
+   * Defaults to an animated shimmer bar.
+   */
+  loadingCell?: ReactNode;
   /**
    * Render an overlay element inside a selected row.
    * Receives the clicked row data and its index.
