@@ -557,21 +557,31 @@ function LatticeGridInner<TData = unknown>({
 
   const rowBg = useCallback(
     (row: TData, ri: number) => {
-      if (isRowSelected(row, ri)) return "var(--vg-bg-row-selected)";
-      return features.alternateRows && ri % 2 === 1
-        ? "var(--vg-bg-row-alt)"
-        : "var(--vg-bg)";
+      if (isRowSelected(row, ri))
+        return (styles.rowSelected?.background as string | undefined) ??
+          (styles.rowSelected?.backgroundColor as string | undefined) ??
+          "var(--vg-bg-row-selected)";
+      if (features.alternateRows && ri % 2 === 1) return "var(--vg-bg-row-alt)";
+      return (styles.row?.background as string | undefined) ??
+        (styles.row?.backgroundColor as string | undefined) ??
+        "var(--vg-bg)";
     },
-    [isRowSelected, features.alternateRows],
+    [isRowSelected, features.alternateRows, styles.rowSelected, styles.row],
   );
 
   const pinnedRowBg = useCallback(
     (row: TData, ri: number) => {
-      if (isRowSelected(row, ri)) return "var(--vg-bg-row-selected)";
+      if (isRowSelected(row, ri))
+        return (styles.rowSelected?.background as string | undefined) ??
+          (styles.rowSelected?.backgroundColor as string | undefined) ??
+          "var(--vg-bg-row-selected)";
       if (features.alternateRows && ri % 2 === 1) return "var(--vg-bg-row-alt)";
-      return "var(--vg-bg-pinned)";
+      return (styles.pinnedCell?.background as string | undefined) ??
+        (styles.pinnedCell?.backgroundColor as string | undefined) ??
+        (styles.row?.background as string | undefined) ??
+        "var(--vg-bg-pinned)";
     },
-    [isRowSelected, features.alternateRows],
+    [isRowSelected, features.alternateRows, styles.rowSelected, styles.row, styles.pinnedCell],
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -870,6 +880,7 @@ function LatticeGridInner<TData = unknown>({
           </div>
         )}
         {cells}
+        {isSel && slots.rowSelectionIndicator?.(row, rowIndex)}
       </div>
     );
   };
@@ -889,7 +900,9 @@ function LatticeGridInner<TData = unknown>({
       const rowKey = getRowId ? String(getRowId(row, ri)) : String(ri);
       const isSel = isRowSelected(row, ri);
       const frozenBg = isSel
-        ? "var(--vg-bg-row-selected)"
+        ? ((styles.rowSelected?.background as string | undefined) ??
+            (styles.rowSelected?.backgroundColor as string | undefined) ??
+            "var(--vg-bg-row-selected)")
         : "var(--vg-bg-frozen, var(--vg-bg-row-alt))";
       rows.push(
         <div
@@ -908,6 +921,7 @@ function LatticeGridInner<TData = unknown>({
             height: rowHeight,
             background: frozenBg,
             cursor: "pointer",
+            overflow: "hidden",
             ...styles.row,
             ...(isSel ? styles.rowSelected : {}),
           }}
@@ -934,6 +948,11 @@ function LatticeGridInner<TData = unknown>({
               zIndex: 2,
             }}
           />
+          {isSel && (
+            <div style={{ position: "absolute", inset: 0, zIndex: 3, pointerEvents: "none" }}>
+              {slots.rowSelectionIndicator?.(row, ri)}
+            </div>
+          )}
         </div>,
       );
     }
@@ -1136,7 +1155,7 @@ function LatticeGridInner<TData = unknown>({
               background: "var(--vg-bg-header)",
               borderBottom: "1px solid var(--vg-border-strong)",
               zIndex: 10,
-              overflow: "hidden",
+              overflow: "visible",
             }}
           >
             {headerCells}
@@ -1328,7 +1347,7 @@ function LatticeGridInner<TData = unknown>({
                             left: 0,
                             width: canvasW,
                             height: headerHeight,
-                            overflow: "hidden",
+                            overflow: "visible",
                           }}
                         >
                           {renderScrollableLeafRow()}
@@ -1343,7 +1362,7 @@ function LatticeGridInner<TData = unknown>({
                           left: 0,
                           width: canvasW,
                           height: headerHeight,
-                          overflow: "hidden",
+                          overflow: "visible",
                         }}
                       >
                         {renderScrollableFlatHeader()}

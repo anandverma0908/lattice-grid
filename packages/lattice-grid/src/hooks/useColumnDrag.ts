@@ -70,6 +70,11 @@ export interface ColumnDragHandlers {
   registerGhost: (el: HTMLDivElement | null) => void;
   /** Attach to indicator div — hook initialises it hidden and writes left/display directly. */
   registerIndicator: (el: HTMLDivElement | null) => void;
+  /**
+   * Returns true (and clears the flag) if a real drag just ended.
+   * Call in click/sort handlers to swallow the post-drag synthetic click.
+   */
+  consumeDragEnd: () => boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,6 +106,10 @@ export function useColumnDrag({
   // DOM refs for ghost and indicator elements.
   const ghostElRef = useRef<HTMLDivElement | null>(null);
   const indicatorElRef = useRef<HTMLDivElement | null>(null);
+
+  // Set to true when a real drag (threshold crossed) completes. Cleared by
+  // consumeDragEnd() so the post-drag click does not trigger sort/click handlers.
+  const wasDraggingRef = useRef(false);
 
   // Initial ghost left set when drag activates — read by useLayoutEffect.
   const initialGhostLeftRef = useRef(0);
@@ -288,6 +297,13 @@ export function useColumnDrag({
                 onMoveColumnToEnd?.(columnId);
               }
             }
+
+            // Mark that a real drag ended so consumeDragEnd() can swallow
+            // the click event that the browser fires after pointerup.
+            wasDraggingRef.current = true;
+            // Reset after the current event loop flushes (click fires in the
+            // same task as pointerup, so setTimeout(0) resets after it).
+            setTimeout(() => { wasDraggingRef.current = false; }, 0);
           }
 
           setDragState(IDLE);
@@ -300,5 +316,13 @@ export function useColumnDrag({
     [onMoveColumnBefore, onMoveColumnToEnd, resolve],
   );
 
-  return { getDragHandlers, dragState, registerGhost, registerIndicator };
+  const consumeDragEnd = useCallback(() => {
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false;
+      return true;
+    }
+    return false;
+  }, []);
+
+  return { getDragHandlers, dragState, registerGhost, registerIndicator, consumeDragEnd };
 }
