@@ -85,7 +85,7 @@ export const HeaderCell = memo(function HeaderCell({
     classNames,
   } = useGridContext();
   const { sortState, toggleSort, toggleColumnVisibility } = engine;
-  const { getDragHandlers, dragState } = dragHandlers;
+  const { getDragHandlers, dragState, consumeDragEnd } = dragHandlers;
 
   const [hovered, setHovered] = useState(false);
 
@@ -101,6 +101,7 @@ export const HeaderCell = memo(function HeaderCell({
   const dragProps = canDrag ? getDragHandlers(column.id) : {};
 
   const handleClick = (e: React.MouseEvent) => {
+    if (consumeDragEnd()) return;
     if ((e.target as HTMLElement).closest("[data-vg-hide]")) return;
     if (canSort) toggleSort(column.id);
   };
@@ -163,7 +164,7 @@ export const HeaderCell = memo(function HeaderCell({
         userSelect: "none",
         opacity: isDragging ? 0.45 : 1,
         boxSizing: "border-box",
-        overflow: "hidden",
+        overflow: "visible",
         whiteSpace: "nowrap",
         transition: "background var(--vg-transition)",
         outline: "none",
@@ -257,17 +258,20 @@ export const HeaderCell = memo(function HeaderCell({
       {showResizeHandle && canResize && (
         <div
           aria-hidden="true"
+          data-resize-handle=""
+          onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={handleResizeMouseDown}
+          onClick={(e) => e.stopPropagation()}
           style={{
             position: "absolute",
-            right: 0,
-            top: "20%",
-            width: 4,
-            height: "60%",
+            right: -4,
+            top: 0,
+            width: 8,
+            height: "100%",
             borderRadius: 2,
             cursor: "col-resize",
             background: "transparent",
-            zIndex: 2,
+            zIndex: 3,
             transition: "background var(--vg-transition)",
           }}
           onMouseEnter={(e) =>

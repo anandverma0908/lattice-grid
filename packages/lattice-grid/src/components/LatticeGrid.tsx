@@ -1155,7 +1155,7 @@ function LatticeGridInner<TData = unknown>({
               background: "var(--vg-bg-header)",
               borderBottom: "1px solid var(--vg-border-strong)",
               zIndex: 10,
-              overflow: "hidden",
+              overflow: "visible",
             }}
           >
             {headerCells}
@@ -1347,7 +1347,7 @@ function LatticeGridInner<TData = unknown>({
                             left: 0,
                             width: canvasW,
                             height: headerHeight,
-                            overflow: "hidden",
+                            overflow: "visible",
                           }}
                         >
                           {renderScrollableLeafRow()}
@@ -1362,7 +1362,7 @@ function LatticeGridInner<TData = unknown>({
                           left: 0,
                           width: canvasW,
                           height: headerHeight,
-                          overflow: "hidden",
+                          overflow: "visible",
                         }}
                       >
                         {renderScrollableFlatHeader()}
