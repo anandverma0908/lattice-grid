@@ -92,6 +92,7 @@ export const HeaderCell = memo(function HeaderCell({
   const isSorted = sortState.columnId === column.id;
   const isDragging = dragState.draggingId === column.id;
   const isDropTarget = dragState.overTargetId === column.id;
+  const dropInsertBefore = dragState.insertBefore;
 
   const canSort = column.sortable && features.sort;
   const canResize = column.resizable && features.resize;
@@ -125,6 +126,14 @@ export const HeaderCell = memo(function HeaderCell({
 
   const borderLeft = isFirst ? "1px solid var(--vg-border)" : undefined;
   const borderRight = "1px solid var(--vg-border)";
+
+  // Use inset box-shadow for the drop indicator so it doesn't affect layout size.
+  // Left accent = will insert before this column; right accent = will insert after (end of zone).
+  const dropShadow = isDropTarget
+    ? dropInsertBefore
+      ? "inset 3px 0 0 var(--vg-accent)"
+      : "inset -3px 0 0 var(--vg-accent)"
+    : undefined;
 
   return (
     <div
@@ -160,6 +169,7 @@ export const HeaderCell = memo(function HeaderCell({
         borderLeft,
         borderRight,
         borderBottom: "1px solid var(--vg-border)",
+        boxShadow: dropShadow,
         cursor: canSort ? "pointer" : canDrag ? "grab" : "default",
         userSelect: "none",
         opacity: isDragging ? 0.45 : 1,

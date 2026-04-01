@@ -519,8 +519,10 @@ function LatticeGridInner<TData = unknown>({
       const scIdx = scrollableColumns.findIndex((c) => c.id === columnId);
       if (scIdx !== -1) {
         const col = scrollableColumns[scIdx]!;
-        const bandScroll = Math.max(0, sl - pinnedLeftWidth);
-        const colLeft = pinnedLeftWidth + (offsets[scIdx] ?? 0) - bandScroll;
+        // sl is scrollAreaRef.scrollLeft — the canvas shifts left by sl pixels, so
+        // a cell at canvas-left (pinnedLeftWidth + offset) lands at viewport position
+        // bodyRect.left + (pinnedLeftWidth + offset) - sl.
+        const colLeft = pinnedLeftWidth + (offsets[scIdx] ?? 0) - sl;
         return { left: bodyRect.left + colLeft, right: bodyRect.left + colLeft + col.width };
       }
 
@@ -1605,23 +1607,6 @@ function LatticeGridInner<TData = unknown>({
                   )}
                 </div>
 
-                {/* Drop indicator line.
-                    IMPORTANT: `left` and `display` are absent — the hook
-                    writes them directly so React re-renders don't reset them.
-                    registerIndicator initialises display:none on mount. */}
-                <div
-                  ref={dragHandlers.registerIndicator}
-                  style={{
-                    position: "fixed",
-                    top: bodyRect.top,
-                    width: 2,
-                    height: bodyRect.height,
-                    background: "var(--vg-accent)",
-                    zIndex: 10000,
-                    pointerEvents: "none",
-                    borderRadius: 1,
-                  }}
-                />
               </>
             );
           })()}

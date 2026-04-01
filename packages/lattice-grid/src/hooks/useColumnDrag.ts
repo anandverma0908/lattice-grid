@@ -56,9 +56,18 @@ export interface UseColumnDragOptions {
 
 export interface ColumnDragState {
   draggingId: string | null;
+  /**
+   * The column whose header is highlighted as the drop destination.
+   * - non-null + insertBefore=true  → cursor is in the left half of this column  (will insert before it)
+   * - non-null + insertBefore=false → cursor is past all zone columns (will insert after this one)
+   * - null → no valid drop target in zone
+   *
+   * NOTE: ghostLeft is intentionally NOT here. It lives in a mutable ref so
+   * React never touches el.style.left after the initial useLayoutEffect sets it.
+   */
   overTargetId: string | null;
-  // NOTE: ghostLeft is intentionally NOT here. It lives in a mutable ref so
-  // React never touches el.style.left after the initial useLayoutEffect sets it.
+  /** Which side of the highlighted header to accent. true = left edge, false = right edge. */
+  insertBefore: boolean;
 }
 
 export interface ColumnDragHandlers {
@@ -68,8 +77,6 @@ export interface ColumnDragHandlers {
   dragState: ColumnDragState;
   /** Attach to ghost div — hook will write left directly, bypassing React. */
   registerGhost: (el: HTMLDivElement | null) => void;
-  /** Attach to indicator div — hook initialises it hidden and writes left/display directly. */
-  registerIndicator: (el: HTMLDivElement | null) => void;
   /**
    * Returns true (and clears the flag) if a real drag just ended.
    * Call in click/sort handlers to swallow the post-drag synthetic click.
@@ -83,7 +90,7 @@ export interface ColumnDragHandlers {
 
 const DRAG_THRESHOLD = 4; // px before drag activates
 
-const IDLE: ColumnDragState = { draggingId: null, overTargetId: null };
+const IDLE: ColumnDragState = { draggingId: null, overTargetId: null, insertBefore: true };
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Hook
@@ -103,9 +110,8 @@ export function useColumnDrag({
   const getBoundsRef = useRef(getColumnViewportBounds);
   getBoundsRef.current = getColumnViewportBounds;
 
-  // DOM refs for ghost and indicator elements.
+  // DOM ref for the ghost element — left position written directly (no React re-render).
   const ghostElRef = useRef<HTMLDivElement | null>(null);
-  const indicatorElRef = useRef<HTMLDivElement | null>(null);
 
   // Set to true when a real drag (threshold crossed) completes. Cleared by
   // consumeDragEnd() so the post-drag click does not trigger sort/click handlers.
@@ -119,12 +125,6 @@ export function useColumnDrag({
     ghostElRef.current = el;
   }, []);
 
-  const registerIndicator = useCallback((el: HTMLDivElement | null) => {
-    indicatorElRef.current = el;
-    // Ensure indicator starts hidden so it's never visible at left:0 before
-    // the hook positions it. React never writes display/left on this element.
-    if (el) el.style.display = 'none';
-  }, []);
 
   // ── Initial ghost position via layout effect ────────────────────────────────
   // Fires after React mounts the ghost div (refs are set) but before browser
@@ -167,11 +167,16 @@ export function useColumnDrag({
   );
 
   // ── Position resolver ───────────────────────────────────────────────────────
+  // Returns:
+  //   id          — drop-logic target: the column to insert BEFORE (null = append to zone end)
+  //   afterId     — drop-logic barrier: first non-draggable column after the zone (or null)
+  //   highlightId — visual: which column header to accent (null = no valid target)
+  //   insertBefore — visual: true = left-edge accent (insert before), false = right-edge (insert after)
   const resolve = useCallback(
     (
       cursorX: number,
       draggingId: string,
-    ): { id: string | null; lineX: number | null; afterId: string | null } => {
+    ): { id: string | null; afterId: string | null; highlightId: string | null; insertBefore: boolean } => {
       const { ids: zoneIds, afterId } = getEffectiveZone(draggingId);
       const getBounds = getBoundsRef.current;
 
@@ -186,13 +191,15 @@ export function useColumnDrag({
 
       for (const col of candidates) {
         if (cursorX <= col.mid) {
-          return { id: col.id, lineX: col.left, afterId };
+          // Cursor is in the left half of this column → insert before it
+          return { id: col.id, afterId, highlightId: col.id, insertBefore: true };
         }
       }
 
+      // Cursor is past all candidates → insert after the last zone column
       const last = candidates[candidates.length - 1];
-      if (last) return { id: null, lineX: last.right, afterId };
-      return { id: null, lineX: null, afterId };
+      if (last) return { id: null, afterId, highlightId: last.id, insertBefore: false };
+      return { id: null, afterId, highlightId: null, insertBefore: true };
     },
     [getEffectiveZone],
   );
@@ -210,33 +217,29 @@ export function useColumnDrag({
         let offsetX = 0;
         let rafId = 0;
         let pendingEv: PointerEvent | null = null;
-        let lastOverTargetId: string | null = null;
+        let lastHighlightId: string | null = null;
+        let lastInsertBefore: boolean = true;
 
         const flush = () => {
           if (!pendingEv) return;
           const ev = pendingEv;
           pendingEv = null;
 
-          const { id, lineX } = resolve(ev.clientX, columnId);
+          const { highlightId, insertBefore } = resolve(ev.clientX, columnId);
 
-          // ── Direct DOM updates — zero React renders ──
+          // ── Ghost position — direct DOM update, zero React renders ──
           if (ghostElRef.current) {
             ghostElRef.current.style.left = `${ev.clientX - offsetX}px`;
           }
-          if (indicatorElRef.current) {
-            if (lineX !== null) {
-              indicatorElRef.current.style.left = `${lineX - 1}px`;
-              indicatorElRef.current.style.display = 'block';
-            } else {
-              indicatorElRef.current.style.display = 'none';
-            }
-          }
 
-          // React update only when the drop-target column changes (column midpoint crossed).
-          if (id !== lastOverTargetId) {
-            lastOverTargetId = id;
+          // ── React update only when the highlighted column or side changes ──
+          if (highlightId !== lastHighlightId || insertBefore !== lastInsertBefore) {
+            lastHighlightId = highlightId;
+            lastInsertBefore = insertBefore;
             setDragState((prev) =>
-              prev.overTargetId === id ? prev : { ...prev, overTargetId: id },
+              prev.overTargetId === highlightId && prev.insertBefore === insertBefore
+                ? prev
+                : { ...prev, overTargetId: highlightId, insertBefore },
             );
           }
         };
@@ -257,11 +260,12 @@ export function useColumnDrag({
             // the ghost div mounts (before paint). Never stored in React state.
             initialGhostLeftRef.current = startX - offsetX;
 
-            const { id } = resolve(startX, columnId);
-            lastOverTargetId = id;
+            const { highlightId, insertBefore } = resolve(startX, columnId);
+            lastHighlightId = highlightId;
+            lastInsertBefore = insertBefore;
 
-            // Minimal React update — just mounts the ghost/indicator elements.
-            setDragState({ draggingId: columnId, overTargetId: id });
+            // Minimal React update — mounts the ghost and sets initial highlight.
+            setDragState({ draggingId: columnId, overTargetId: highlightId, insertBefore });
 
             document.body.style.cursor = 'grabbing';
             (
@@ -324,5 +328,5 @@ export function useColumnDrag({
     return false;
   }, []);
 
-  return { getDragHandlers, dragState, registerGhost, registerIndicator, consumeDragEnd };
+  return { getDragHandlers, dragState, registerGhost, consumeDragEnd };
 }
