@@ -138,6 +138,10 @@ export function useColumnDrag({
   }, [dragState.draggingId]);
 
   // ── Zone computation ────────────────────────────────────────────────────────
+  // The only hard stop for zone expansion is a pin-section change
+  // (left-pinned / scrollable / right-pinned).  Group boundaries and
+  // non-draggable columns are transparent — draggable columns anywhere in
+  // the same pin section can be freely reordered with each other.
   const getEffectiveZone = useCallback(
     (draggingId: string): { ids: Set<string>; afterId: string | null } => {
       const cols = columnsRef.current;
@@ -150,12 +154,13 @@ export function useColumnDrag({
 
       for (let i = srcIdx - 1; i >= 0; i--) {
         const c = cols[i]!;
-        if (!c.draggable || c.groupId !== src.groupId || c.pinned !== src.pinned) break;
+        // Only hard barrier: different pin section (left-pinned / scrollable / right-pinned).
+        if (c.pinned !== src.pinned) break;
         start = i;
       }
       for (let i = srcIdx + 1; i < cols.length; i++) {
         const c = cols[i]!;
-        if (!c.draggable || c.groupId !== src.groupId || c.pinned !== src.pinned) break;
+        if (c.pinned !== src.pinned) break;
         end = i;
       }
 
@@ -168,10 +173,17 @@ export function useColumnDrag({
 
   // ── Position resolver ───────────────────────────────────────────────────────
   // Returns:
-  //   id          — drop-logic target: the column to insert BEFORE (null = append to zone end)
-  //   afterId     — drop-logic barrier: first non-draggable column after the zone (or null)
-  //   highlightId — visual: which column header to accent (null = no valid target)
-  //   insertBefore — visual: true = left-edge accent (insert before), false = right-edge (insert after)
+  //   id           — drop-logic: column to insert BEFORE (can be non-draggable; null = append)
+  //   afterId      — drop-logic: barrier column after the zone (or null)
+  //   highlightId  — visual: draggable column whose header to accent (null = no target)
+  //   insertBefore — visual: true = left-edge accent (before), false = right-edge (after)
+  //
+  // Non-draggable columns inside the zone are included in position detection so the
+  // cursor position resolves accurately across the full width.  For the visual
+  // indicator we always map to the nearest draggable column:
+  //   • cursor in left half of draggable col  → highlight that col, left accent
+  //   • cursor in left half of non-draggable  → highlight last draggable seen, right accent
+  //   • cursor past all candidates             → highlight last draggable, right accent
   const resolve = useCallback(
     (
       cursorX: number,
@@ -179,26 +191,56 @@ export function useColumnDrag({
     ): { id: string | null; afterId: string | null; highlightId: string | null; insertBefore: boolean } => {
       const { ids: zoneIds, afterId } = getEffectiveZone(draggingId);
       const getBounds = getBoundsRef.current;
+      const cols = columnsRef.current;
 
-      const candidates: { id: string; left: number; right: number; mid: number }[] = [];
+      // ALL zone columns (draggable + non-draggable) contribute to position detection.
+      const candidates: { id: string; left: number; right: number; mid: number; draggable: boolean }[] = [];
       for (const id of zoneIds) {
         if (id === draggingId) continue;
         const b = getBounds(id);
         if (!b) continue;
-        candidates.push({ id, left: b.left, right: b.right, mid: (b.left + b.right) / 2 });
+        const meta = cols.find((c) => c.id === id);
+        candidates.push({
+          id,
+          left: b.left,
+          right: b.right,
+          mid: (b.left + b.right) / 2,
+          draggable: meta?.draggable ?? false,
+        });
       }
       candidates.sort((a, b) => a.left - b.left);
 
+      // Walk left-to-right, tracking the last draggable column we passed.
+      let lastDraggableSeen: (typeof candidates)[0] | null = null;
+
       for (const col of candidates) {
         if (cursorX <= col.mid) {
-          // Cursor is in the left half of this column → insert before it
-          return { id: col.id, afterId, highlightId: col.id, insertBefore: true };
+          if (col.draggable) {
+            // Cursor in the left half of a draggable column → insert before it.
+            return { id: col.id, afterId, highlightId: col.id, insertBefore: true };
+          } else {
+            // Cursor in the left half of a non-draggable column.
+            // Drop: insert before this non-draggable (puts dragged col just before the block).
+            // Visual: accent the previous draggable with a right-edge indicator ("after me").
+            return {
+              id: col.id,
+              afterId,
+              highlightId: lastDraggableSeen?.id ?? null,
+              insertBefore: false,
+            };
+          }
         }
+        if (col.draggable) lastDraggableSeen = col;
       }
 
-      // Cursor is past all candidates → insert after the last zone column
+      // Cursor is past all candidates → append to zone end.
+      // Find the last draggable column for the visual indicator.
+      let lastDraggable: (typeof candidates)[0] | null = null;
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        if (candidates[i]!.draggable) { lastDraggable = candidates[i]!; break; }
+      }
       const last = candidates[candidates.length - 1];
-      if (last) return { id: null, afterId, highlightId: last.id, insertBefore: false };
+      if (last) return { id: null, afterId, highlightId: lastDraggable?.id ?? null, insertBefore: false };
       return { id: null, afterId, highlightId: null, insertBefore: true };
     },
     [getEffectiveZone],
