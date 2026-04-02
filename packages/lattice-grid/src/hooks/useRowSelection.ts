@@ -189,7 +189,7 @@ export function useRowSelection<TData>({
       const id = getRowId(row, index);
 
       if (mode === 'single') {
-        dispatch({ type: 'TOGGLE', id, mode: 'single' });
+        dispatch({ type: 'SET', ids: [id] });
         return;
       }
 
@@ -203,7 +203,7 @@ export function useRowSelection<TData>({
       } else if (event.ctrlKey || event.metaKey) {
         dispatch({ type: 'TOGGLE', id, mode: 'multi' });
       } else {
-        dispatch({ type: 'TOGGLE', id, mode: 'multi' });
+        dispatch({ type: 'SET', ids: [id] });
       }
 
       lastClickedIndexRef.current = index;

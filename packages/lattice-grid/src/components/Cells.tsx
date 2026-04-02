@@ -137,11 +137,6 @@ export const DataCell = memo(function DataCell({
           .filter(Boolean)
           .join(" ") || undefined
       }
-      // Stop clicks from bubbling to the row's onClick when the cell has a
-      // custom renderer. Prevents row selection from firing (and re-rendering
-      // with old data) when the user interacts with interactive cell content
-      // like checkboxes, buttons, or inputs.
-      onClick={column.renderCell ? (e) => e.stopPropagation() : undefined}
       style={{
         ...style,
         position: "absolute",

@@ -213,7 +213,7 @@ function LatticeGridInner<TData = unknown>({
         const key = getRowId
           ? String(getRowId(row, rowIndex))
           : String(rowIndex);
-        setSelectedRowKey((prev) => (prev === key ? null : key));
+        setSelectedRowKey(key);
       }
       onRowClick?.(row, rowIndex);
     },
