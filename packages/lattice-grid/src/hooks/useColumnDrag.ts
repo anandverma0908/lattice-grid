@@ -154,13 +154,15 @@ export function useColumnDrag({
 
       for (let i = srcIdx - 1; i >= 0; i--) {
         const c = cols[i]!;
-        // Only hard barrier: different pin section (left-pinned / scrollable / right-pinned).
+        // Hard barriers: different pin section or different group.
         if (c.pinned !== src.pinned) break;
+        if (c.groupId !== src.groupId) break;
         start = i;
       }
       for (let i = srcIdx + 1; i < cols.length; i++) {
         const c = cols[i]!;
         if (c.pinned !== src.pinned) break;
+        if (c.groupId !== src.groupId) break;
         end = i;
       }
 
