@@ -1,23 +1,67 @@
 {
-  "name": "lattice-grid-monorepo",
-  "private": true,
-  "version": "1.0.0",
-  "description": "Monorepo for @lattice-grid-lib/core library and demo app",
-  "workspaces": [
-    "packages/*",
-    "apps/*"
+  "name": "@lattice-grid-lib/core",
+  "version": "1.0.7",
+  "description": "A high-performance, fully-customisable React data grid with row & column virtualisation, column grouping, pinning, resizing, reordering, and theming.",
+  "author": "goldfish",
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "grid",
+    "table",
+    "datagrid",
+    "virtualisation",
+    "virtualization",
+    "typescript",
+    "headless"
   ],
+  "main": "./dist/index.cjs.js",
+  "module": "./dist/index.esm.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.cjs.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
   "scripts": {
-    "build": "npm run build --workspace=packages/lattice-grid",
-    "dev": "npm run dev --workspace=apps/demo",
-    "test": "npm run test --workspace=packages/lattice-grid",
-    "lint": "eslint packages apps --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit --project packages/lattice-grid/tsconfig.json"
+    "build": "vite build && tsc --emitDeclarationOnly --declaration --declarationDir dist",
+    "dev": "vite build --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^8.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/user-event": "^14.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
     "eslint": "^8.0.0",
-    "typescript": "^5.3.0"
+    "eslint-plugin-react": "^7.0.0",
+    "eslint-plugin-react-hooks": "^4.0.0",
+    "jsdom": "^23.0.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vite-plugin-dts": "^3.0.0",
+    "vitest": "^1.0.0"
   }
 }
