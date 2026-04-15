@@ -37,7 +37,7 @@ export interface LeafColumnDef<TData = unknown> {
   resizable?: boolean;
   draggable?: boolean;
   hideable?: boolean;
-  stock?:string;
+  stock?: string;
   // FIX 3: renderHeader now receives (col, engine) as second arg so custom
   // headers can access sort state, fire actions, render filter inputs, etc.
   renderHeader?: (
@@ -328,6 +328,12 @@ export interface LatticeGridProps<TData = unknown> {
    * Persist this to your API and restore via initialColumnState.
    */
   onColumnStateChange?: (state: ColumnState[]) => void;
+  /**
+   * Externally controlled selected row id. When provided, the grid syncs its
+   * internal highlight to this value whenever it changes (e.g. after a data
+   * refresh that resets the selection to a different row).
+   */
+  selectedRowId?: string | number | null;
 
   // Events
   onRowClick?: (row: TData, index: number) => void;

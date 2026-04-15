@@ -107,6 +107,7 @@ function LatticeGridInner<TData = unknown>({
   slots = {},
   freezeColId,
   loading = false,
+  selectedRowId,
   onRowClick,
   onSortChange,
   onColumnStateChange,
@@ -207,6 +208,12 @@ function LatticeGridInner<TData = unknown>({
   // ── Row selection ────────────────────────────────────────────────────────────
   const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
 
+  // Sync externally controlled selection (e.g. reset to first row after refresh)
+  useEffect(() => {
+    if (!features.rowSelection) return;
+    setSelectedRowKey(selectedRowId != null ? String(selectedRowId) : null);
+  }, [selectedRowId, features.rowSelection]);
+
   const handleRowClick = useCallback(
     (row: TData, rowIndex: number) => {
       if (features.rowSelection) {
@@ -232,7 +239,7 @@ function LatticeGridInner<TData = unknown>({
   // ── Scroll ───────────────────────────────────────────────────────────────────
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollLeftRef = useRef(0);
-  const scrollTopRef  = useRef(0);
+  const scrollTopRef = useRef(0);
   // Single render-trigger — replaces the two setState calls (scrollTop/scrollLeft).
   // All scroll-driven geometry is computed synchronously into refs before this fires.
   const [, forceUpdate] = useReducer((x: number) => x + 1, 0);
@@ -309,9 +316,9 @@ function LatticeGridInner<TData = unknown>({
   // always uses the CURRENT scroll position, not a stale state value.
   const vRowsRef = useRef<VirtualRowWindow>({
     startIndex: 0,
-    endIndex:   -1,
+    endIndex: -1,
     totalHeight: 0,
-    offsetY:    0,
+    offsetY: 0,
   });
   const recomputeVRows = useCallback(
     (st: number) => {
@@ -384,7 +391,7 @@ function LatticeGridInner<TData = unknown>({
     if (!el) return;
     const st = el.scrollTop;
     const sl = el.scrollLeft;
-    scrollTopRef.current  = st;
+    scrollTopRef.current = st;
     scrollLeftRef.current = sl;
     // All geometry computed synchronously — refs are up-to-date before React renders.
     recomputeVRows(st);
@@ -511,7 +518,10 @@ function LatticeGridInner<TData = unknown>({
       let acc = 0;
       for (const col of pinnedLeftColumns) {
         if (col.id === columnId)
-          return { left: bodyRect.left + acc, right: bodyRect.left + acc + col.width };
+          return {
+            left: bodyRect.left + acc,
+            right: bodyRect.left + acc + col.width,
+          };
         acc += col.width;
       }
 
@@ -523,7 +533,10 @@ function LatticeGridInner<TData = unknown>({
         // a cell at canvas-left (pinnedLeftWidth + offset) lands at viewport position
         // bodyRect.left + (pinnedLeftWidth + offset) - sl.
         const colLeft = pinnedLeftWidth + (offsets[scIdx] ?? 0) - sl;
-        return { left: bodyRect.left + colLeft, right: bodyRect.left + colLeft + col.width };
+        return {
+          left: bodyRect.left + colLeft,
+          right: bodyRect.left + colLeft + col.width,
+        };
       }
 
       // Pinned right
@@ -531,14 +544,24 @@ function LatticeGridInner<TData = unknown>({
       for (const col of pinnedRightColumns) {
         if (col.id === columnId) {
           const rightStart = bodyRect.right - pinnedRightWidth;
-          return { left: rightStart + acc, right: rightStart + acc + col.width };
+          return {
+            left: rightStart + acc,
+            right: rightStart + acc + col.width,
+          };
         }
         acc += col.width;
       }
 
       return null;
     },
-    [pinnedLeftColumns, scrollableColumns, pinnedRightColumns, pinnedLeftWidth, pinnedRightWidth, offsets],
+    [
+      pinnedLeftColumns,
+      scrollableColumns,
+      pinnedRightColumns,
+      pinnedLeftWidth,
+      pinnedRightWidth,
+      offsets,
+    ],
   );
 
   const dragHandlers = useColumnDrag({
@@ -596,13 +619,17 @@ function LatticeGridInner<TData = unknown>({
   const rowBg = useCallback(
     (row: TData, ri: number) => {
       if (isRowSelected(row, ri))
-        return (styles.rowSelected?.background as string | undefined) ??
+        return (
+          (styles.rowSelected?.background as string | undefined) ??
           (styles.rowSelected?.backgroundColor as string | undefined) ??
-          "var(--vg-bg-row-selected)";
+          "var(--vg-bg-row-selected)"
+        );
       if (features.alternateRows && ri % 2 === 1) return "var(--vg-bg-row-alt)";
-      return (styles.row?.background as string | undefined) ??
+      return (
+        (styles.row?.background as string | undefined) ??
         (styles.row?.backgroundColor as string | undefined) ??
-        "var(--vg-bg)";
+        "var(--vg-bg)"
+      );
     },
     [isRowSelected, features.alternateRows, styles.rowSelected, styles.row],
   );
@@ -610,16 +637,26 @@ function LatticeGridInner<TData = unknown>({
   const pinnedRowBg = useCallback(
     (row: TData, ri: number) => {
       if (isRowSelected(row, ri))
-        return (styles.rowSelected?.background as string | undefined) ??
+        return (
+          (styles.rowSelected?.background as string | undefined) ??
           (styles.rowSelected?.backgroundColor as string | undefined) ??
-          "var(--vg-bg-row-selected)";
+          "var(--vg-bg-row-selected)"
+        );
       if (features.alternateRows && ri % 2 === 1) return "var(--vg-bg-row-alt)";
-      return (styles.pinnedCell?.background as string | undefined) ??
+      return (
+        (styles.pinnedCell?.background as string | undefined) ??
         (styles.pinnedCell?.backgroundColor as string | undefined) ??
         (styles.row?.background as string | undefined) ??
-        "var(--vg-bg-pinned)";
+        "var(--vg-bg-pinned)"
+      );
     },
-    [isRowSelected, features.alternateRows, styles.rowSelected, styles.row, styles.pinnedCell],
+    [
+      isRowSelected,
+      features.alternateRows,
+      styles.rowSelected,
+      styles.row,
+      styles.pinnedCell,
+    ],
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -869,23 +906,21 @@ function LatticeGridInner<TData = unknown>({
             const el = e.currentTarget as HTMLElement;
             el.style.background = "var(--vg-bg-row-hover)";
             // Update sticky pinned wrappers too
-            (
-              el.querySelectorAll<HTMLElement>(
-                "[data-pinned-sticky]",
-              )
-            ).forEach((w) => {
-              w.style.background = "var(--vg-bg-row-hover)";
-            });
+            el.querySelectorAll<HTMLElement>("[data-pinned-sticky]").forEach(
+              (w) => {
+                w.style.background = "var(--vg-bg-row-hover)";
+              },
+            );
           }
         }}
         onMouseLeave={(e) => {
           const el = e.currentTarget as HTMLElement;
           el.style.background = bg;
-          (
-            el.querySelectorAll<HTMLElement>("[data-pinned-sticky]")
-          ).forEach((w) => {
-            w.style.background = pinnedBg;
-          });
+          el.querySelectorAll<HTMLElement>("[data-pinned-sticky]").forEach(
+            (w) => {
+              w.style.background = pinnedBg;
+            },
+          );
         }}
       >
         {leftPinCells && (
@@ -945,8 +980,8 @@ function LatticeGridInner<TData = unknown>({
       const isSel = isRowSelected(row, ri);
       const frozenBg = isSel
         ? ((styles.rowSelected?.background as string | undefined) ??
-            (styles.rowSelected?.backgroundColor as string | undefined) ??
-            "var(--vg-bg-row-selected)")
+          (styles.rowSelected?.backgroundColor as string | undefined) ??
+          "var(--vg-bg-row-selected)")
         : "var(--vg-bg-frozen, var(--vg-bg-row-alt))";
       rows.push(
         <div
@@ -995,7 +1030,14 @@ function LatticeGridInner<TData = unknown>({
             }}
           />
           {isSel && (
-            <div style={{ position: "absolute", inset: 0, zIndex: 3, pointerEvents: "none" }}>
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 3,
+                pointerEvents: "none",
+              }}
+            >
               {slots.rowSelectionIndicator?.(row, ri)}
             </div>
           )}
@@ -1075,7 +1117,9 @@ function LatticeGridInner<TData = unknown>({
               key={`ph-leaf-${col.id}`}
               column={col}
               isFirst={i === 0 || cols[i - 1]?.groupId !== col.groupId}
-              isLast={i === cols.length - 1 || cols[i + 1]?.groupId !== col.groupId}
+              isLast={
+                i === cols.length - 1 || cols[i + 1]?.groupId !== col.groupId
+              }
               style={{
                 position: "absolute",
                 left: colLefts[i],
@@ -1434,8 +1478,7 @@ function LatticeGridInner<TData = unknown>({
                         // Initial state — handleScroll + useLayoutEffect keep
                         // this in sync after every scroll / React commit.
                         visibility: frozenIdx !== null ? "visible" : "hidden",
-                        pointerEvents:
-                          frozenIdx !== null ? "auto" : "none",
+                        pointerEvents: frozenIdx !== null ? "auto" : "none",
                       }}
                     >
                       {renderFrozenBodyRows()}
@@ -1581,7 +1624,7 @@ function LatticeGridInner<TData = unknown>({
                           ];
                       const content = draggingCol.renderCell
                         ? draggingCol.renderCell(raw, row)
-                        : (raw as React.ReactNode) ?? "—";
+                        : ((raw as React.ReactNode) ?? "—");
                       return (
                         <div
                           key={ri}
@@ -1606,7 +1649,6 @@ function LatticeGridInner<TData = unknown>({
                     },
                   )}
                 </div>
-
               </>
             );
           })()}
