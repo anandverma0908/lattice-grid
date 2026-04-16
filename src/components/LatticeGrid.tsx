@@ -300,8 +300,8 @@ function LatticeGridInner<TData = unknown>({
 
   // When height is not provided, compute content height and cap at maxHeight.
   // Content height = header + all rows + toolbar + footer (estimated).
-  const toolbarH = features.toolbar ? 36 : 0;
-  const footerH = features.footer ? 29 : 0;
+  const toolbarH = features.toolbar && !slots.toolbar ? 36 : 0;
+  const footerH = features.footer && !slots.footer ? 29 : 0;
   const contentH =
     totalHeaderHeight + sortedData.length * rowHeight + toolbarH + footerH;
   const effectiveHeight = height ?? Math.min(contentH, maxHeight);
