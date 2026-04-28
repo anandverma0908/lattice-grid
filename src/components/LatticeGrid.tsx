@@ -1386,7 +1386,7 @@ function LatticeGridInner<TData = unknown>({
                 onScroll={handleScroll}
                 style={{
                   position: "absolute",
-                  inset: 0,
+                  inset: "-5px",
                   overflow: "auto",
                   scrollbarWidth: "thin",
                   scrollbarColor:
