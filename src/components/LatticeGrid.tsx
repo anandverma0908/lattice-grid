@@ -304,7 +304,11 @@ function LatticeGridInner<TData = unknown>({
   const footerH = features.footer && !slots.footer ? 29 : 0;
   const SCROLLBAR_GUTTER = 17;
   const contentH =
-    totalHeaderHeight + sortedData.length * rowHeight + toolbarH + footerH + SCROLLBAR_GUTTER;
+    totalHeaderHeight +
+    sortedData.length * rowHeight +
+    toolbarH +
+    footerH +
+    SCROLLBAR_GUTTER;
   const effectiveHeight = height ?? Math.min(contentH, maxHeight);
   const scrollViewWidth = Math.max(
     0,
@@ -1387,12 +1391,13 @@ function LatticeGridInner<TData = unknown>({
                 onScroll={handleScroll}
                 style={{
                   position: "absolute",
-                  inset: "-5px",
+                  inset: 0,
                   overflow: "auto",
                   scrollbarWidth: "thin",
                   scrollbarColor:
                     "var(--vg-scrollbar-thumb) var(--vg-scrollbar-track)",
                   willChange: "scroll-position",
+                  ...(sortedData?.length === 1 && { height: "130px!important" }),
                 }}
               >
                 <div
