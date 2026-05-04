@@ -1392,12 +1392,12 @@ function LatticeGridInner<TData = unknown>({
                 style={{
                   position: "absolute",
                   inset: 0,
-                  overflow: "auto",
+                  overflowX: "auto",
+                  overflowY: spacerHeight > bodyWrapH ? "auto" : "hidden",
                   scrollbarWidth: "thin",
                   scrollbarColor:
                     "var(--vg-scrollbar-thumb) var(--vg-scrollbar-track)",
                   willChange: "scroll-position",
-                  ...(sortedData?.length === 1 && { height: "130px!important" }),
                 }}
               >
                 <div
