@@ -309,10 +309,8 @@ function LatticeGridInner<TData = unknown>({
     toolbarH +
     footerH +
     SCROLLBAR_GUTTER;
-  const minH = totalHeaderHeight + sortedData.length * rowHeight + toolbarH + footerH;
-  const effectiveHeight = height != null
-    ? Math.max(height, minH)
-    : Math.max(Math.min(contentH, maxHeight), minH);
+  const effectiveHeight =
+    height != null ? height : Math.min(contentH, maxHeight);
   const scrollViewWidth = Math.max(
     0,
     bodyWrapW - pinnedLeftWidth - pinnedRightWidth,

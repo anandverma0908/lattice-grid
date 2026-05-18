@@ -1,6 +1,6 @@
 {
   "name": "@lattice-grid-lib/core",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "A high-performance, fully-customisable React data grid with row & column virtualisation, column grouping, pinning, resizing, reordering, and theming.",
   "author": "goldfish",
   "license": "MIT",
