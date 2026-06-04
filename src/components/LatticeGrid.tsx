@@ -40,6 +40,7 @@ import type {
   ResolvedColumn,
   GridFeatures,
   GridIcons,
+  GridTexts,
   GridStyles,
   GridClassNames,
   VirtualRowWindow,
@@ -69,6 +70,23 @@ const DEFAULT_FEATURES: Required<GridFeatures> = {
 const EMPTY_ICONS: GridIcons = {};
 const EMPTY_STYLES: GridStyles = {};
 const EMPTY_CLASSNAMES: GridClassNames = {};
+
+const DEFAULT_TEXTS: GridTexts = {
+  hideColumn: "Hide column",
+  manageColumns: "Manage columns",
+  columnManager: "Column manager",
+  columns: "columns",
+  rows: "rows",
+  selected: "selected",
+  hidden: "hidden",
+  showAll: "Show all",
+  noPin: "No pin",
+  pinLeft: "Pin left",
+  pinRight: "Pin right",
+  done: "Done",
+  loading: "Loading...",
+  of: "of",
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  FROZEN COLUMN FINDER
@@ -102,6 +120,7 @@ function LatticeGridInner<TData = unknown>({
   theme = "light",
   features: featuresProp,
   icons: iconsProp,
+  texts: textsProp,
   classNames: classNamesProp,
   styles: stylesProp,
   slots = {},
@@ -125,6 +144,11 @@ function LatticeGridInner<TData = unknown>({
     [JSON.stringify(featuresProp)],
   );
   const icons = iconsProp ?? EMPTY_ICONS;
+  const texts = useMemo(
+    () => ({ ...DEFAULT_TEXTS, ...textsProp }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(textsProp)],
+  );
   const styles = stylesProp ?? EMPTY_STYLES;
   const classNames = classNamesProp ?? EMPTY_CLASSNAMES;
 
@@ -297,25 +321,29 @@ function LatticeGridInner<TData = unknown>({
   const totalHeaderHeight = hasGroups
     ? groupHeaderHeight + headerHeight
     : headerHeight;
+  const scrollViewWidth = Math.max(
+    0,
+    bodyWrapW - pinnedLeftWidth - pinnedRightWidth,
+  );
+  const canvasW = pinnedLeftWidth + totalScrollW + pinnedRightWidth;
+  const needsHorizontalScrollbar = canvasW > bodyWrapW + 1;
 
   // When height is not provided, compute content height and cap at maxHeight.
   // Content height = header + all rows + toolbar + footer (estimated).
   const toolbarH = features.toolbar && !slots.toolbar ? 36 : 0;
   const footerH = features.footer && !slots.footer ? 29 : 0;
   const SCROLLBAR_GUTTER = 17;
+  const horizontalScrollbarGutter = needsHorizontalScrollbar
+    ? SCROLLBAR_GUTTER
+    : 0;
   const contentH =
     totalHeaderHeight +
     sortedData.length * rowHeight +
     toolbarH +
     footerH +
-    SCROLLBAR_GUTTER;
-  const effectiveHeight =
-    height != null ? height : Math.min(contentH, maxHeight);
-  const scrollViewWidth = Math.max(
-    0,
-    bodyWrapW - pinnedLeftWidth - pinnedRightWidth,
-  );
-  const canvasW = pinnedLeftWidth + totalScrollW + pinnedRightWidth;
+    horizontalScrollbarGutter;
+  const heightCap = height ?? maxHeight;
+  const effectiveHeight = Math.min(contentH, heightCap);
 
   // ── Row window (synchronous ref — same strategy as vColsRef) ────────────────
   // Computed synchronously in every scroll event so the render that follows
@@ -611,11 +639,12 @@ function LatticeGridInner<TData = unknown>({
       startResize,
       features,
       icons,
+      texts,
       styles,
       classNames,
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [engine, dragHandlers, startResize, features, icons, styles, classNames],
+    [engine, dragHandlers, startResize, features, icons, texts, styles, classNames],
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1286,12 +1315,12 @@ function LatticeGridInner<TData = unknown>({
     <span
       style={{ fontSize: 12, color: "var(--vg-text-dim)", fontWeight: 500 }}
     >
-      {sortedData.length.toLocaleString()} rows
+      {sortedData.length.toLocaleString()} {texts.rows}
       {selectedRowKey && (
         <span
           style={{ marginLeft: 8, color: "var(--vg-accent)", fontWeight: 600 }}
         >
-          · 1 selected
+          · 1 {texts.selected}
         </span>
       )}
     </span>
@@ -1367,9 +1396,9 @@ function LatticeGridInner<TData = unknown>({
                     onClick={() => setShowColMgr((v) => !v)}
                     active={showColMgr}
                     icon={colsButtonIcon}
-                    aria-label="Manage columns"
+                    aria-label={texts.manageColumns}
                   >
-                    Columns
+                    {texts.columns}
                   </ToolbarButton>
                   {colManagerNode}
                 </>
@@ -1535,7 +1564,7 @@ function LatticeGridInner<TData = unknown>({
                         fontFamily: "var(--vg-font)",
                       }}
                     >
-                      Loading…
+                      {texts.loading}
                     </div>
                   )}
                 </div>

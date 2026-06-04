@@ -105,7 +105,7 @@ interface FooterProps {
 export const Footer = memo(function Footer({
   startRow, endRow, totalRows, visibleCols, totalCols,
 }: FooterProps) {
-  const { classNames, styles } = useGridContext();
+  const { classNames, styles, texts } = useGridContext();
   return (
     <div
       className={classNames.footer || undefined}
@@ -124,9 +124,12 @@ export const Footer = memo(function Footer({
         ...styles.footer,
       }}
     >
-      <span>{startRow.toLocaleString()}–{endRow.toLocaleString()} of {totalRows.toLocaleString()} rows</span>
+      <span>
+        {startRow.toLocaleString()}–{endRow.toLocaleString()} {texts.of}{" "}
+        {totalRows.toLocaleString()} {texts.rows}
+      </span>
       <span style={{ opacity: 0.5 }}>·</span>
-      <span>{visibleCols}/{totalCols} columns</span>
+      <span>{visibleCols}/{totalCols} {texts.columns}</span>
     </div>
   );
 });

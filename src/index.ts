@@ -42,6 +42,7 @@ export type { LatticeGridProps } from "./types";
 export type {
   GridFeatures,
   GridIcons,
+  GridTexts,
   GridClassNames,
   GridStyles,
   GridSlots,

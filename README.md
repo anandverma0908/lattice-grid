@@ -127,6 +127,26 @@ const myTheme = { ...GRID_THEMES.dark, '--vg-accent': '#a855f7' };
 
 ---
 
+## Localised UI text
+
+Pass `texts` to translate built-in labels, buttons, tooltips, and accessibility
+text such as the hide-column action.
+
+```tsx
+<LatticeGrid
+  columns={columns}
+  data={rows}
+  texts={{
+    hideColumn: t('grid.hideColumn'),
+    manageColumns: t('grid.manageColumns'),
+    columns: t('grid.columns'),
+    rows: t('grid.rows'),
+  }}
+/>
+```
+
+---
+
 ## Headless API
 
 The engine is fully decoupled from the renderer. Use it to build a completely custom grid UI:
@@ -150,11 +170,12 @@ function MyCustomGrid({ columns, data }) {
 | `columns` | `ColumnDef<TData>[]` | — | Column tree |
 | `data` | `TData[]` | — | Row data |
 | `getRowId` | `(row, i) => string` | index | Stable row key |
-| `height` | `number` | `480` | Viewport height in px |
+| `height` | `number` | — | Max grid height in px; short data shrinks to content |
 | `rowHeight` | `number` | `36` | Row height in px |
 | `headerHeight` | `number` | `38` | Leaf header row height |
 | `groupHeaderHeight` | `number` | `28` | Group header row height |
 | `theme` | `ThemePreset \| GridTokens` | `"light"` | Theme preset or token map |
+| `texts` | `Partial<GridTexts>` | English labels | Built-in UI text overrides |
 | `alternateRows` | `boolean` | `true` | Zebra-stripe rows |
 | `showToolbar` | `boolean` | `true` | Show built-in toolbar |
 | `showFooter` | `boolean` | `true` | Show row/col count footer |

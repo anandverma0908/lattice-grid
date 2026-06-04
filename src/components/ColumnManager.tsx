@@ -13,7 +13,7 @@ interface ColumnManagerProps {
 }
 
 export const ColumnManager = memo(function ColumnManager({ onClose }: ColumnManagerProps) {
-  const { engine, features, classNames } = useGridContext();
+  const { engine, features, texts, classNames } = useGridContext();
   const { orderedColumns, toggleColumnVisibility, pinColumn, showAllColumns } = engine;
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -36,7 +36,7 @@ export const ColumnManager = memo(function ColumnManager({ onClose }: ColumnMana
     <div
       ref={panelRef}
       role="dialog"
-      aria-label="Column manager"
+      aria-label={texts.columnManager}
       className={classNames.columnPanel || undefined}
       style={{
         position:       'absolute',
@@ -69,14 +69,14 @@ export const ColumnManager = memo(function ColumnManager({ onClose }: ColumnMana
           textTransform: 'uppercase', letterSpacing: '0.08em',
           color:         'var(--vg-text-dim)',
         }}>
-          Columns
+          {texts.columns}
           {hiddenCount > 0 && (
             <span style={{
               marginLeft: 6,
               background: 'var(--vg-accent-bg)', color: 'var(--vg-accent-text)',
               borderRadius: 10, padding: '1px 6px', fontSize: 10,
             }}>
-              {hiddenCount} hidden
+              {hiddenCount} {texts.hidden}
             </span>
           )}
         </span>
@@ -89,7 +89,7 @@ export const ColumnManager = memo(function ColumnManager({ onClose }: ColumnMana
               fontWeight: 600, fontFamily: 'var(--vg-font)', padding: '2px 4px',
             }}
           >
-            Show all
+            {texts.showAll}
           </button>
         )}
       </div>
@@ -146,9 +146,9 @@ export const ColumnManager = memo(function ColumnManager({ onClose }: ColumnMana
                   cursor: 'pointer', fontFamily: 'var(--vg-font)', outline: 'none',
                 }}
               >
-                <option value="">No pin</option>
-                <option value="left">Pin left</option>
-                <option value="right">Pin right</option>
+                <option value="">{texts.noPin}</option>
+                <option value="left">{texts.pinLeft}</option>
+                <option value="right">{texts.pinRight}</option>
               </select>
             )}
           </div>
@@ -176,7 +176,7 @@ export const ColumnManager = memo(function ColumnManager({ onClose }: ColumnMana
             ((e.currentTarget as HTMLElement).style.background = 'var(--vg-accent)')
           }
         >
-          Done
+          {texts.done}
         </button>
       </div>
     </div>

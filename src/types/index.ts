@@ -200,6 +200,27 @@ export interface GridIcons {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  TEXTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface GridTexts {
+  hideColumn: string;
+  manageColumns: string;
+  columnManager: string;
+  columns: string;
+  rows: string;
+  selected: string;
+  hidden: string;
+  showAll: string;
+  noPin: string;
+  pinLeft: string;
+  pinRight: string;
+  done: string;
+  loading: string;
+  of: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  CLASSNAMES
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -308,6 +329,7 @@ export interface LatticeGridProps<TData = unknown> {
   // Customisation
   features?: GridFeatures;
   icons?: GridIcons;
+  texts?: Partial<GridTexts>;
   classNames?: GridClassNames;
   styles?: GridStyles;
   slots?: GridSlots<TData>;

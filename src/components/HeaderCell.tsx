@@ -81,6 +81,7 @@ export const HeaderCell = memo(function HeaderCell({
     startResize,
     features,
     icons,
+    texts,
     styles,
     classNames,
   } = useGridContext();
@@ -228,8 +229,8 @@ export const HeaderCell = memo(function HeaderCell({
         <span
           data-vg-hide=""
           role="button"
-          aria-label="Hide column"
-          title="Hide column"
+          aria-label={texts.hideColumn}
+          title={texts.hideColumn}
           onClick={handleHide}
           style={{
             display: "inline-flex",

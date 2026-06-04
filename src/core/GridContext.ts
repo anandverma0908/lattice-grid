@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { createContext, useContext } from 'react';
-import type { GridEngine, GridFeatures, GridIcons, GridStyles, GridClassNames } from '../types';
+import type { GridEngine, GridFeatures, GridIcons, GridTexts, GridStyles, GridClassNames } from '../types';
 import type { ColumnDragHandlers } from '../hooks/useColumnDrag';
 
 export interface GridContextValue<TData = unknown> {
@@ -12,6 +12,7 @@ export interface GridContextValue<TData = unknown> {
   startResize:  (e: React.MouseEvent, columnId: string) => void;
   features:     Required<GridFeatures>;
   icons:        GridIcons;
+  texts:        GridTexts;
   styles:       GridStyles;
   classNames:   GridClassNames;
 }
