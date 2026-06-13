@@ -37,6 +37,7 @@ export interface LeafColumnDef<TData = unknown> {
   resizable?: boolean;
   draggable?: boolean;
   hideable?: boolean;
+  editable?: boolean;
   stock?: string;
   // FIX 3: renderHeader now receives (col, engine) as second arg so custom
   // headers can access sort state, fire actions, render filter inputs, etc.
@@ -94,6 +95,7 @@ export interface ResolvedColumn<TData = any> {
   resizable: boolean;
   draggable: boolean;
   hideable: boolean;
+  editable: boolean;
   width: number;
   minWidth: number;
   maxWidth: number;
@@ -359,6 +361,9 @@ export interface LatticeGridProps<TData = unknown> {
 
   // Events
   onRowClick?: (row: TData, index: number) => void;
+  onRowsDelete?: (rows: TData[], rowIndexes: number[]) => void;
+  onRowInsert?: () => void;
+  onCellEdit?: (row: TData, rowIndex: number, column: ResolvedColumn<TData>, value: string) => void;
   onSortChange?: (sort: SortState) => void;
   onColumnResize?: (columnId: string, width: number) => void;
   onColumnReorder?: (newOrder: string[]) => void;

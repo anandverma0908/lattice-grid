@@ -4,8 +4,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useGridExport } from '../src/hooks/useGridExport';
-import type { ResolvedColumn } from '../src/types';
+import { useGridExport } from '../hooks/useGridExport';
+import type { ResolvedColumn } from '../types';
 
 function makeCol(id: string, field: string, label: string): ResolvedColumn {
   return {

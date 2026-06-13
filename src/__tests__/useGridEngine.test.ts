@@ -4,8 +4,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useGridEngine } from '../src/core/useGridEngine';
-import type { ColumnDef } from '../src/types';
+import { useGridEngine } from '../core/useGridEngine';
+import type { ColumnDef } from '../types';
 
 interface Row {
   id: number;

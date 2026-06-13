@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useGridPagination } from '../src/hooks/useGridPagination';
+import { useGridPagination } from '../hooks/useGridPagination';
 
 const data = Array.from({ length: 250 }, (_, i) => ({ id: i }));
 

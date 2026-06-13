@@ -4,8 +4,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useColumnFilter } from '../src/hooks/useColumnFilter';
-import type { LeafColumnDef } from '../src/types';
+import { useColumnFilter } from '../hooks/useColumnFilter';
+import type { LeafColumnDef } from '../types';
 
 interface Row { id: number; name: string; city: string; value: number }
 

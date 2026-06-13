@@ -1,232 +1,288 @@
 // =============================================================================
 //  @lattice-grid-lib/core — useGridKeyboard
 //
-//  ARIA-compliant keyboard navigation for the grid.
-//
-//  Supported keys:
-//    ArrowUp / ArrowDown   → move focused row
-//    ArrowLeft / ArrowRight → move focused column
-//    Home / End            → jump to first/last column in row
-//    PageUp / PageDown     → jump rows by viewport page
-//    Enter / Space         → activate (calls onActivate)
-//    Escape                → clear focus
-//
-//  This hook manages ONLY focus state (focused row/col index).
-//  Scrolling the body into view is the consumer's responsibility via
-//  the returned `focusedCell` and the `scrollToRow` callback.
+//  ARIA grid keyboard interaction model with roving-tabindex focus.
 // =============================================================================
 
-import { useCallback, useReducer } from 'react';
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  TYPES
-// ─────────────────────────────────────────────────────────────────────────────
+import { useCallback, useReducer } from "react";
 
 export interface FocusedCell {
   rowIndex: number;
   colIndex: number;
 }
 
+export interface EditingCell extends FocusedCell {
+  initialValue: string;
+  value: string;
+}
+
 export interface UseGridKeyboardOptions {
   rowCount: number;
   colCount: number;
-  /** Number of rows visible in the viewport (used for PageUp/PageDown) */
   visibleRowCount?: number;
-  /** Called when Enter or Space is pressed on a cell */
-  onActivate?: (cell: FocusedCell) => void;
-  /** Called when focus moves to a new row (for programmatic scroll) */
-  onFocusRow?: (rowIndex: number) => void;
+  isEditing?: boolean;
+  isEditableCell?: (cell: FocusedCell) => boolean;
+  onFocusCell?: (cell: FocusedCell) => void;
+  onSelectRow?: (rowIndex: number, additive: boolean) => void;
+  onToggleRow?: (rowIndex: number) => void;
+  onSelectRange?: (fromRowIndex: number, toRowIndex: number) => void;
+  onSelectAll?: () => void;
+  onStartEditing?: (cell: FocusedCell) => void;
+  onCommitEditing?: (move?: "next" | "previous") => void;
+  onCancelEditing?: () => void;
+  onDeleteRows?: () => void;
+  onInsertRow?: () => void;
+  onResizeColumn?: (colIndex: number, delta: number) => void;
+  onReorderColumn?: (colIndex: number, direction: -1 | 1) => number | void;
 }
 
 export interface UseGridKeyboardReturn {
   focusedCell: FocusedCell | null;
   setFocusedCell: (cell: FocusedCell | null) => void;
+  moveFocus: (cell: FocusedCell) => void;
   handleKeyDown: (e: React.KeyboardEvent) => void;
-  /** tabIndex for the grid container */
-  gridTabIndex: 0 | -1;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  REDUCER
-// ─────────────────────────────────────────────────────────────────────────────
-
-type KeyboardAction =
-  | { type: 'MOVE_ROW'; delta: number; rowCount: number }
-  | { type: 'MOVE_COL'; delta: number; colCount: number }
-  | { type: 'SET_ROW'; rowIndex: number; rowCount: number }
-  | { type: 'HOME' }
-  | { type: 'END'; colCount: number }
-  | { type: 'SET'; cell: FocusedCell | null }
-  | { type: 'CLEAR' };
+type KeyboardAction = { type: "SET"; cell: FocusedCell | null };
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-function keyboardReducer(
-  state: FocusedCell | null,
-  action: KeyboardAction,
+function normalizeCell(
+  cell: FocusedCell | null,
+  rowCount: number,
+  colCount: number,
 ): FocusedCell | null {
-  switch (action.type) {
-    case 'MOVE_ROW':
-      if (!state) return { rowIndex: 0, colIndex: 0 };
-      return {
-        ...state,
-        rowIndex: clamp(state.rowIndex + action.delta, 0, action.rowCount - 1),
-      };
-    case 'MOVE_COL':
-      if (!state) return { rowIndex: 0, colIndex: 0 };
-      return {
-        ...state,
-        colIndex: clamp(state.colIndex + action.delta, 0, action.colCount - 1),
-      };
-    case 'SET_ROW':
-      if (!state) return { rowIndex: action.rowIndex, colIndex: 0 };
-      return { ...state, rowIndex: clamp(action.rowIndex, 0, action.rowCount - 1) };
-    case 'HOME':
-      if (!state) return null;
-      return { ...state, colIndex: 0 };
-    case 'END':
-      if (!state) return null;
-      return { ...state, colIndex: action.colCount - 1 };
-    case 'SET':
-      return action.cell;
-    case 'CLEAR':
-      return null;
-    default:
-      return state;
-  }
+  if (!cell || rowCount <= 0 || colCount <= 0) return null;
+  return {
+    rowIndex: clamp(cell.rowIndex, 0, rowCount - 1),
+    colIndex: clamp(cell.colIndex, 0, colCount - 1),
+  };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  HOOK
-// ─────────────────────────────────────────────────────────────────────────────
+function keyboardReducer(
+  _state: FocusedCell | null,
+  action: KeyboardAction,
+): FocusedCell | null {
+  return action.cell;
+}
 
-/**
- * useGridKeyboard
- *
- * Attach the returned `handleKeyDown` to the grid container's onKeyDown
- * and use `focusedCell` to highlight the active cell.
- *
- * @example
- * const keyboard = useGridKeyboard({
- *   rowCount: data.length,
- *   colCount: visibleColumns.length,
- *   onActivate: (cell) => setSelected(data[cell.rowIndex]),
- *   onFocusRow: (idx) => scrollBodyRef.current?.scrollTo({ top: idx * rowHeight }),
- * });
- *
- * <div
- *   role="grid"
- *   tabIndex={keyboard.gridTabIndex}
- *   onKeyDown={keyboard.handleKeyDown}
- * >
- *   ...
- * </div>
- */
 export function useGridKeyboard({
   rowCount,
   colCount,
   visibleRowCount = 20,
-  onActivate,
-  onFocusRow,
+  isEditing = false,
+  isEditableCell = () => true,
+  onFocusCell,
+  onSelectRow,
+  onToggleRow,
+  onSelectRange,
+  onSelectAll,
+  onStartEditing,
+  onCommitEditing,
+  onCancelEditing,
+  onDeleteRows,
+  onInsertRow,
+  onResizeColumn,
+  onReorderColumn,
 }: UseGridKeyboardOptions): UseGridKeyboardReturn {
-  const [focusedCell, dispatch] = useReducer(keyboardReducer, null);
+  const [focusedCell, dispatch] = useReducer(
+    keyboardReducer,
+    rowCount > 0 && colCount > 0 ? { rowIndex: 0, colIndex: 0 } : null,
+  );
 
-  const setFocusedCell = useCallback((cell: FocusedCell | null) => {
-    dispatch({ type: 'SET', cell });
-  }, []);
+  const moveFocus = useCallback(
+    (cell: FocusedCell) => {
+      const next = normalizeCell(cell, rowCount, colCount);
+      dispatch({ type: "SET", cell: next });
+      if (next) onFocusCell?.(next);
+    },
+    [rowCount, colCount, onFocusCell],
+  );
+
+  const setFocusedCell = useCallback(
+    (cell: FocusedCell | null) => {
+      const next = normalizeCell(cell, rowCount, colCount);
+      dispatch({ type: "SET", cell: next });
+      if (next) onFocusCell?.(next);
+    },
+    [rowCount, colCount, onFocusCell],
+  );
+
+  const moveBy = useCallback(
+    (
+      deltaRow: number,
+      deltaCol: number,
+      extendSelection: boolean,
+      anchor: FocusedCell,
+    ) => {
+      const next = normalizeCell(
+        {
+          rowIndex: anchor.rowIndex + deltaRow,
+          colIndex: anchor.colIndex + deltaCol,
+        },
+        rowCount,
+        colCount,
+      );
+      if (!next) return;
+      moveFocus(next);
+      if (extendSelection) onSelectRange?.(anchor.rowIndex, next.rowIndex);
+    },
+    [rowCount, colCount, moveFocus, onSelectRange],
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (rowCount === 0 || colCount === 0) return;
 
+      const active = focusedCell ?? { rowIndex: 0, colIndex: 0 };
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (isEditing) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onCancelEditing?.();
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          onCommitEditing?.();
+        } else if (e.key === "F2") {
+          e.preventDefault();
+          onCommitEditing?.();
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          onCommitEditing?.(e.shiftKey ? "previous" : "next");
+        }
+        return;
+      }
+
+      if (mod && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        onSelectAll?.();
+        return;
+      }
+
+      if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        onResizeColumn?.(active.colIndex, e.key === "ArrowRight" ? 10 : -10);
+        return;
+      }
+
+      if (
+        mod &&
+        e.shiftKey &&
+        (e.key === "ArrowLeft" || e.key === "ArrowRight")
+      ) {
+        e.preventDefault();
+        const direction = e.key === "ArrowRight" ? 1 : -1;
+        const nextCol = onReorderColumn?.(active.colIndex, direction);
+        moveFocus({
+          rowIndex: active.rowIndex,
+          colIndex:
+            typeof nextCol === "number"
+              ? nextCol
+              : clamp(active.colIndex + direction, 0, colCount - 1),
+        });
+        return;
+      }
+
       switch (e.key) {
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault();
-          dispatch({ type: 'MOVE_ROW', delta: 1, rowCount });
-          if (focusedCell) onFocusRow?.(Math.min(focusedCell.rowIndex + 1, rowCount - 1));
+          moveBy(1, 0, e.shiftKey, active);
           break;
-
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault();
-          dispatch({ type: 'MOVE_ROW', delta: -1, rowCount });
-          if (focusedCell) onFocusRow?.(Math.max(focusedCell.rowIndex - 1, 0));
+          moveBy(-1, 0, e.shiftKey, active);
           break;
-
-        case 'ArrowRight':
+        case "ArrowRight":
           e.preventDefault();
-          dispatch({ type: 'MOVE_COL', delta: 1, colCount });
+          moveBy(0, 1, e.shiftKey, active);
           break;
-
-        case 'ArrowLeft':
+        case "ArrowLeft":
           e.preventDefault();
-          dispatch({ type: 'MOVE_COL', delta: -1, colCount });
+          moveBy(0, -1, e.shiftKey, active);
           break;
-
-        case 'Home':
+        case "Home":
           e.preventDefault();
-          if (e.ctrlKey || e.metaKey) {
-            dispatch({ type: 'SET_ROW', rowIndex: 0, rowCount });
-            onFocusRow?.(0);
-          } else {
-            dispatch({ type: 'HOME' });
-          }
+          moveFocus({
+            rowIndex: mod ? 0 : active.rowIndex,
+            colIndex: 0,
+          });
           break;
-
-        case 'End':
+        case "End":
           e.preventDefault();
-          if (e.ctrlKey || e.metaKey) {
-            dispatch({ type: 'SET_ROW', rowIndex: rowCount - 1, rowCount });
-            onFocusRow?.(rowCount - 1);
-          } else {
-            dispatch({ type: 'END', colCount });
-          }
+          moveFocus({
+            rowIndex: mod ? rowCount - 1 : active.rowIndex,
+            colIndex: colCount - 1,
+          });
           break;
-
-        case 'PageDown': {
+        case "PageDown":
           e.preventDefault();
-          const nextRow = Math.min((focusedCell?.rowIndex ?? -1) + visibleRowCount, rowCount - 1);
-          dispatch({ type: 'SET_ROW', rowIndex: nextRow, rowCount });
-          onFocusRow?.(nextRow);
+          moveFocus({
+            rowIndex: active.rowIndex + visibleRowCount,
+            colIndex: active.colIndex,
+          });
           break;
-        }
-
-        case 'PageUp': {
+        case "PageUp":
           e.preventDefault();
-          const prevRow = Math.max((focusedCell?.rowIndex ?? 0) - visibleRowCount, 0);
-          dispatch({ type: 'SET_ROW', rowIndex: prevRow, rowCount });
-          onFocusRow?.(prevRow);
+          moveFocus({
+            rowIndex: active.rowIndex - visibleRowCount,
+            colIndex: active.colIndex,
+          });
           break;
-        }
-
-        case 'Enter':
-        case ' ': {
-          if (!focusedCell) {
-            // Focus first cell on Enter/Space with no selection
-            dispatch({ type: 'SET', cell: { rowIndex: 0, colIndex: 0 } });
-            break;
-          }
+        case " ":
           e.preventDefault();
-          onActivate?.(focusedCell);
+          if (mod) onToggleRow?.(active.rowIndex);
+          else onSelectRow?.(active.rowIndex, false);
           break;
-        }
-
-        case 'Escape':
-          dispatch({ type: 'CLEAR' });
+        case "Enter":
+          e.preventDefault();
+          if (isEditableCell(active)) onStartEditing?.(active);
           break;
-
+        case "F2":
+          e.preventDefault();
+          if (isEditableCell(active)) onStartEditing?.(active);
+          break;
+        case "Delete":
+          e.preventDefault();
+          onDeleteRows?.();
+          break;
+        case "Insert":
+          e.preventDefault();
+          onInsertRow?.();
+          break;
         default:
           break;
       }
     },
-    [focusedCell, rowCount, colCount, visibleRowCount, onActivate, onFocusRow],
+    [
+      rowCount,
+      colCount,
+      visibleRowCount,
+      focusedCell,
+      isEditing,
+      isEditableCell,
+      moveBy,
+      moveFocus,
+      onCancelEditing,
+      onCommitEditing,
+      onDeleteRows,
+      onInsertRow,
+      onReorderColumn,
+      onResizeColumn,
+      onSelectAll,
+      onSelectRange,
+      onSelectRow,
+      onStartEditing,
+      onToggleRow,
+    ],
   );
 
   return {
-    focusedCell,
+    focusedCell: normalizeCell(focusedCell, rowCount, colCount),
     setFocusedCell,
+    moveFocus,
     handleKeyDown,
-    gridTabIndex: 0,
   };
 }

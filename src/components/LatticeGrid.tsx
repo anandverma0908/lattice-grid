@@ -29,6 +29,7 @@ import {
 } from "../hooks/useVirtualizer";
 import { useColumnResize } from "../hooks/useColumnResize";
 import { useColumnDrag } from "../hooks/useColumnDrag";
+import { useGridKeyboard, type FocusedCell } from "../hooks/useGridKeyboard";
 import { GridContextProvider } from "../core/GridContext";
 import { resolveTokens, tokensToStyle } from "../core/themes";
 import { HeaderCell } from "./HeaderCell";
@@ -54,6 +55,10 @@ const DEFAULT_HEIGHT = 480;
 const DEFAULT_ROW_HEIGHT = 36;
 const DEFAULT_HDR_HEIGHT = 38;
 const DEFAULT_GRP_HEIGHT = 28;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
 const DEFAULT_FEATURES: Required<GridFeatures> = {
   sort: true,
@@ -132,6 +137,9 @@ function LatticeGridInner<TData = unknown>({
   onColumnStateChange,
   onColumnResize,
   onColumnReorder,
+  onRowsDelete,
+  onRowInsert,
+  onCellEdit,
   sortMode = "client",
   ariaLabel = "Data grid",
   className,
@@ -230,34 +238,43 @@ function LatticeGridInner<TData = unknown>({
   }, [engine.orderedColumns, onColumnStateChange]);
 
   // ── Row selection ────────────────────────────────────────────────────────────
-  const [selectedRowKey, setSelectedRowKey] = useState<string | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const selectionAnchorRef = useRef<number | null>(null);
 
   // Sync externally controlled selection (e.g. reset to first row after refresh)
   useEffect(() => {
     if (!features.rowSelection) return;
-    setSelectedRowKey(selectedRowId != null ? String(selectedRowId) : null);
+    setSelectedRowKeys(
+      selectedRowId != null ? new Set([String(selectedRowId)]) : new Set(),
+    );
   }, [selectedRowId, features.rowSelection]);
+
+  const getRowKey = useCallback(
+    (row: TData, rowIndex: number) =>
+      getRowId ? String(getRowId(row, rowIndex)) : String(rowIndex),
+    [getRowId],
+  );
 
   const handleRowClick = useCallback(
     (row: TData, rowIndex: number) => {
       if (features.rowSelection) {
-        const key = getRowId
-          ? String(getRowId(row, rowIndex))
-          : String(rowIndex);
-        setSelectedRowKey(key);
+        const key = getRowKey(row, rowIndex);
+        setSelectedRowKeys(new Set([key]));
+        selectionAnchorRef.current = rowIndex;
       }
       onRowClick?.(row, rowIndex);
     },
-    [features.rowSelection, getRowId, onRowClick],
+    [features.rowSelection, getRowKey, onRowClick],
   );
 
   const isRowSelected = useCallback(
     (row: TData, rowIndex: number): boolean => {
-      if (!selectedRowKey || !features.rowSelection) return false;
-      const key = getRowId ? String(getRowId(row, rowIndex)) : String(rowIndex);
-      return key === selectedRowKey;
+      if (!features.rowSelection) return false;
+      return selectedRowKeys.has(getRowKey(row, rowIndex));
     },
-    [selectedRowKey, features.rowSelection, getRowId],
+    [selectedRowKeys, features.rowSelection, getRowKey],
   );
 
   // ── Scroll ───────────────────────────────────────────────────────────────────
@@ -312,8 +329,8 @@ function LatticeGridInner<TData = unknown>({
       setBodyWrapW(e.contentRect.width);
     });
     ro.observe(el);
-    setBodyWrapH(el.clientHeight);
-    setBodyWrapW(el.clientWidth);
+    if (el.clientHeight > 0) setBodyWrapH(el.clientHeight);
+    if (el.clientWidth > 0) setBodyWrapW(el.clientWidth);
     return () => ro.disconnect();
   }, []);
 
@@ -458,6 +475,7 @@ function LatticeGridInner<TData = unknown>({
     recomputeVRows(scrollTopRef.current);
     recomputeVCols(scrollLeftRef.current);
     recomputeFrozen(scrollLeftRef.current);
+    forceUpdate();
   }, [recomputeVRows, recomputeVCols, recomputeFrozen]);
 
   // Non-passive wheel listener on pinned layer wrappers.
@@ -513,6 +531,286 @@ function LatticeGridInner<TData = unknown>({
   // for the scroll position that triggered this render.
   const vRows = vRowsRef.current;
   const isScrolling = isScrollingRef.current;
+  const visibleRowCount = Math.max(
+    1,
+    Math.floor(Math.max(0, bodyWrapH - totalHeaderHeight) / rowHeight),
+  );
+
+  const [announcement, setAnnouncement] = useState("");
+  const [editingCell, setEditingCell] = useState<{
+    rowIndex: number;
+    colIndex: number;
+    initialValue: string;
+    value: string;
+  } | null>(null);
+  const [editedValues, setEditedValues] = useState<Map<string, string>>(
+    () => new Map(),
+  );
+  const [pendingFocus, setPendingFocus] = useState<FocusedCell | null>(null);
+
+  const getRawCellValue = useCallback(
+    (row: TData, rowIndex: number, column: ResolvedColumn<TData>) => {
+      const key = `${getRowKey(row, rowIndex)}:${column.id}`;
+      if (editedValues.has(key)) return editedValues.get(key);
+      return column.accessor
+        ? column.accessor(row)
+        : (row as Record<string, unknown>)[column.field ?? column.id];
+    },
+    [editedValues, getRowKey],
+  );
+
+  const scrollToCell = useCallback(
+    (cell: FocusedCell) => {
+      const el = scrollAreaRef.current;
+      if (!el) return;
+      const nextTop = cell.rowIndex * rowHeight;
+      const viewportH = Math.max(0, bodyWrapH - totalHeaderHeight);
+      if (nextTop < el.scrollTop) {
+        el.scrollTop = nextTop;
+      } else if (nextTop + rowHeight > el.scrollTop + viewportH) {
+        el.scrollTop = Math.max(0, nextTop + rowHeight - viewportH);
+      }
+
+      const col = visibleColumns[cell.colIndex];
+      if (!col || col.pinned) return;
+      const scIdx = scrollableColumns.findIndex((c) => c.id === col.id);
+      if (scIdx < 0) return;
+      const colLeft = pinnedLeftWidth + (offsets[scIdx] ?? 0);
+      const colRight = colLeft + col.width;
+      const viewportLeft = el.scrollLeft + pinnedLeftWidth;
+      const viewportRight = el.scrollLeft + bodyWrapW - pinnedRightWidth;
+      if (colLeft < viewportLeft) {
+        el.scrollLeft = Math.max(0, colLeft - pinnedLeftWidth);
+      } else if (colRight > viewportRight) {
+        el.scrollLeft = Math.max(0, colRight - bodyWrapW + pinnedRightWidth);
+      }
+      handleScroll();
+    },
+    [
+      bodyWrapH,
+      bodyWrapW,
+      handleScroll,
+      offsets,
+      pinnedLeftWidth,
+      pinnedRightWidth,
+      rowHeight,
+      scrollableColumns,
+      totalHeaderHeight,
+      visibleColumns,
+    ],
+  );
+
+  const selectRowByIndex = useCallback(
+    (rowIndex: number, additive: boolean) => {
+      const row = sortedData[rowIndex];
+      if (!row || !features.rowSelection) return;
+      const key = getRowKey(row, rowIndex);
+      setSelectedRowKeys((prev) => {
+        const next = additive ? new Set(prev) : new Set<string>();
+        if (next.has(key) && additive) {
+          next.delete(key);
+          setAnnouncement(`Row ${rowIndex + 1} deselected`);
+        } else {
+          next.add(key);
+          setAnnouncement(`Row ${rowIndex + 1} selected`);
+        }
+        return next;
+      });
+      selectionAnchorRef.current = rowIndex;
+    },
+    [features.rowSelection, getRowKey, sortedData],
+  );
+
+  const selectRangeByIndex = useCallback(
+    (fromRowIndex: number, toRowIndex: number) => {
+      if (!features.rowSelection) return;
+      const anchor = selectionAnchorRef.current ?? fromRowIndex;
+      const lo = Math.max(0, Math.min(anchor, toRowIndex));
+      const hi = Math.min(sortedData.length - 1, Math.max(anchor, toRowIndex));
+      setSelectedRowKeys((prev) => {
+        const next = new Set(prev);
+        for (let ri = lo; ri <= hi; ri++) {
+          const row = sortedData[ri];
+          if (row) next.add(getRowKey(row, ri));
+        }
+        return next;
+      });
+      setAnnouncement(`Rows ${lo + 1} through ${hi + 1} selected`);
+    },
+    [features.rowSelection, getRowKey, sortedData],
+  );
+
+  const selectAllRows = useCallback(() => {
+    if (!features.rowSelection) return;
+    setSelectedRowKeys(
+      new Set(sortedData.map((row, ri) => getRowKey(row, ri))),
+    );
+    setAnnouncement(`All ${sortedData.length} rows selected`);
+  }, [features.rowSelection, getRowKey, sortedData]);
+
+  const startEditing = useCallback(
+    (cell: FocusedCell) => {
+      const row = sortedData[cell.rowIndex];
+      const column = visibleColumns[cell.colIndex];
+      if (!row || !column || !column.editable) return;
+      const raw = getRawCellValue(row, cell.rowIndex, column);
+      const value = raw == null ? "" : String(raw);
+      setEditingCell({ ...cell, initialValue: value, value });
+      setAnnouncement("Editing started");
+    },
+    [getRawCellValue, sortedData, visibleColumns],
+  );
+
+  const moveToEditableCell = useCallback(
+    (from: FocusedCell, direction: 1 | -1): FocusedCell | null => {
+      let rowIndex = from.rowIndex;
+      let colIndex = from.colIndex + direction;
+      while (rowIndex >= 0 && rowIndex < sortedData.length) {
+        while (colIndex >= 0 && colIndex < visibleColumns.length) {
+          if (visibleColumns[colIndex]?.editable) return { rowIndex, colIndex };
+          colIndex += direction;
+        }
+        rowIndex += direction;
+        colIndex = direction > 0 ? 0 : visibleColumns.length - 1;
+      }
+      return null;
+    },
+    [sortedData.length, visibleColumns],
+  );
+
+  const commitEditing = useCallback(
+    (move?: "next" | "previous") => {
+      if (!editingCell) return;
+      const row = sortedData[editingCell.rowIndex];
+      const column = visibleColumns[editingCell.colIndex];
+      if (row && column) {
+        const key = `${getRowKey(row, editingCell.rowIndex)}:${column.id}`;
+        setEditedValues((prev) => new Map(prev).set(key, editingCell.value));
+        onCellEdit?.(row, editingCell.rowIndex, column, editingCell.value);
+      }
+      setEditingCell(null);
+      setAnnouncement("Editing completed");
+      if (move) {
+        const next = moveToEditableCell(
+          editingCell,
+          move === "next" ? 1 : -1,
+        );
+        if (next) setPendingFocus(next);
+      }
+    },
+    [
+      editingCell,
+      getRowKey,
+      moveToEditableCell,
+      onCellEdit,
+      sortedData,
+      visibleColumns,
+    ],
+  );
+
+  const cancelEditing = useCallback(() => {
+    setEditingCell(null);
+    setAnnouncement("Editing cancelled");
+  }, []);
+
+  const deleteSelectedRows = useCallback(() => {
+    if (selectedRowKeys.size === 0) return;
+    const rows: TData[] = [];
+    const rowIndexes: number[] = [];
+    sortedData.forEach((row, ri) => {
+      if (selectedRowKeys.has(getRowKey(row, ri))) {
+        rows.push(row);
+        rowIndexes.push(ri);
+      }
+    });
+    if (rows.length === 0) return;
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(`Delete ${rows.length} selected row(s)?`);
+      if (!ok) return;
+    }
+    onRowsDelete?.(rows, rowIndexes);
+    setSelectedRowKeys(new Set());
+    setAnnouncement(`${rows.length} selected row(s) deleted`);
+  }, [getRowKey, onRowsDelete, selectedRowKeys, sortedData]);
+
+  const reorderColumnByKeyboard = useCallback(
+    (colIndex: number, direction: -1 | 1): number => {
+      if (!features.reorder) return colIndex;
+      const source = visibleColumns[colIndex];
+      const target = visibleColumns[colIndex + direction];
+      if (!source || !target || !source.draggable || !target.draggable) {
+        return colIndex;
+      }
+      if (direction < 0) {
+        moveColumnBefore(source.id, target.id);
+      } else {
+        const after = visibleColumns[colIndex + 2];
+        if (after) moveColumnBefore(source.id, after.id);
+        else moveColumnToEnd(source.id);
+      }
+      const ids = orderedColumnsRef.current.map((c) => c.id);
+      const nextIds = ids.filter((id) => id !== source.id);
+      const targetIdx = nextIds.indexOf(target.id);
+      if (direction < 0) nextIds.splice(targetIdx, 0, source.id);
+      else if (colIndex + 2 < visibleColumns.length) {
+        const after = visibleColumns[colIndex + 2];
+        const afterIdx = after ? nextIds.indexOf(after.id) : -1;
+        if (afterIdx >= 0) nextIds.splice(afterIdx, 0, source.id);
+      } else nextIds.push(source.id);
+      onColumnReorderRef.current?.(nextIds);
+      setAnnouncement(`Column ${source.label} moved`);
+      return clamp(colIndex + direction, 0, visibleColumns.length - 1);
+    },
+    [features.reorder, moveColumnBefore, moveColumnToEnd, visibleColumns],
+  );
+
+  const keyboard = useGridKeyboard({
+    rowCount: sortedData.length,
+    colCount: visibleColumns.length,
+    visibleRowCount,
+    isEditing: editingCell !== null,
+    isEditableCell: (cell) => visibleColumns[cell.colIndex]?.editable ?? false,
+    onFocusCell: scrollToCell,
+    onSelectRow: selectRowByIndex,
+    onToggleRow: (rowIndex) => selectRowByIndex(rowIndex, true),
+    onSelectRange: selectRangeByIndex,
+    onSelectAll: selectAllRows,
+    onStartEditing: startEditing,
+    onCommitEditing: commitEditing,
+    onCancelEditing: cancelEditing,
+    onDeleteRows: deleteSelectedRows,
+    onInsertRow: () => {
+      onRowInsert?.();
+      setAnnouncement("Row inserted");
+    },
+    onResizeColumn: (colIndex, delta) => {
+      const col = visibleColumns[colIndex];
+      if (!col || !features.resize || !col.resizable) return;
+      resizeColumn(col.id, delta);
+      onColumnResize?.(col.id, col.width + delta);
+      setAnnouncement(`Column ${col.label} resized`);
+    },
+    onReorderColumn: reorderColumnByKeyboard,
+  });
+
+  useEffect(() => {
+    if (!pendingFocus) return;
+    keyboard.moveFocus(pendingFocus);
+    setPendingFocus(null);
+  }, [keyboard, pendingFocus]);
+
+  React.useLayoutEffect(() => {
+    const cell = keyboard.focusedCell;
+    if (!cell) return;
+    const activeElement = document.activeElement;
+    if (!activeElement || !scrollAreaRef.current?.contains(activeElement)) {
+      return;
+    }
+    const el = scrollAreaRef.current?.querySelector<HTMLElement>(
+      `[data-grid-cell="${cell.rowIndex}:${cell.colIndex}"]`,
+    );
+    el?.focus({ preventScroll: true });
+  });
 
   // ── Ungrouped scrollable → rowspan=2 ─────────────────────────────────────────
   const ungroupedIds = useMemo(() => {
@@ -521,6 +819,12 @@ function LatticeGridInner<TData = unknown>({
       scrollableColumns.filter((c) => !inGroup.has(c.id)).map((c) => c.id),
     );
   }, [groups, scrollableColumns]);
+
+  const visibleColIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    visibleColumns.forEach((col, index) => map.set(col.id, index));
+    return map;
+  }, [visibleColumns]);
 
   // ── Hooks ─────────────────────────────────────────────────────────────────────
   const orderedColumnsRef = useRef(engine.orderedColumns);
@@ -832,11 +1136,29 @@ function LatticeGridInner<TData = unknown>({
     for (let ci = vCols.startIndex; ci <= vCols.endIndex; ci++) {
       const col = scrollableColumns[ci];
       if (!col) continue;
+      const colIndex = visibleColIndexById.get(col.id) ?? ci;
+      const isActive =
+        keyboard.focusedCell?.rowIndex === rowIndex &&
+        keyboard.focusedCell.colIndex === colIndex;
+      const isEditing =
+        editingCell?.rowIndex === rowIndex && editingCell.colIndex === colIndex;
       cells.push(
         <DataCell
           key={`ds-${col.id}`}
           column={col}
           row={row}
+          rowIndex={rowIndex}
+          colIndex={colIndex}
+          valueOverride={getRawCellValue(row, rowIndex, col)}
+          active={isActive}
+          selected={isSel}
+          editing={isEditing}
+          editValue={isEditing ? editingCell.value : undefined}
+          onFocusCell={(ri, ci) => keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })}
+          onStartEditing={(ri, ci) => startEditing({ rowIndex: ri, colIndex: ci })}
+          onEditValueChange={(value) =>
+            setEditingCell((prev) => (prev ? { ...prev, value } : prev))
+          }
           isScrolling={isScrolling}
           loadingCell={slots.loadingCell}
           style={{
@@ -863,11 +1185,34 @@ function LatticeGridInner<TData = unknown>({
         ? pinnedLeftColumns.map((col) => {
             const colLeft = leftPinAcc;
             leftPinAcc += col.width;
+            const colIndex = visibleColIndexById.get(col.id) ?? 0;
+            const isActive =
+              keyboard.focusedCell?.rowIndex === rowIndex &&
+              keyboard.focusedCell.colIndex === colIndex;
+            const isEditing =
+              editingCell?.rowIndex === rowIndex &&
+              editingCell.colIndex === colIndex;
             return (
               <DataCell
                 key={`ps-l-${col.id}`}
                 column={col}
                 row={row}
+                rowIndex={rowIndex}
+                colIndex={colIndex}
+                valueOverride={getRawCellValue(row, rowIndex, col)}
+                active={isActive}
+                selected={isSel}
+                editing={isEditing}
+                editValue={isEditing ? editingCell.value : undefined}
+                onFocusCell={(ri, ci) =>
+                  keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })
+                }
+                onStartEditing={(ri, ci) =>
+                  startEditing({ rowIndex: ri, colIndex: ci })
+                }
+                onEditValueChange={(value) =>
+                  setEditingCell((prev) => (prev ? { ...prev, value } : prev))
+                }
                 pinned
                 isScrolling={isScrolling}
                 loadingCell={slots.loadingCell}
@@ -891,11 +1236,34 @@ function LatticeGridInner<TData = unknown>({
         ? pinnedRightColumns.map((col) => {
             const colLeft = rightPinAcc;
             rightPinAcc += col.width;
+            const colIndex = visibleColIndexById.get(col.id) ?? 0;
+            const isActive =
+              keyboard.focusedCell?.rowIndex === rowIndex &&
+              keyboard.focusedCell.colIndex === colIndex;
+            const isEditing =
+              editingCell?.rowIndex === rowIndex &&
+              editingCell.colIndex === colIndex;
             return (
               <DataCell
                 key={`ps-r-${col.id}`}
                 column={col}
                 row={row}
+                rowIndex={rowIndex}
+                colIndex={colIndex}
+                valueOverride={getRawCellValue(row, rowIndex, col)}
+                active={isActive}
+                selected={isSel}
+                editing={isEditing}
+                editValue={isEditing ? editingCell.value : undefined}
+                onFocusCell={(ri, ci) =>
+                  keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })
+                }
+                onStartEditing={(ri, ci) =>
+                  startEditing({ rowIndex: ri, colIndex: ci })
+                }
+                onEditValueChange={(value) =>
+                  setEditingCell((prev) => (prev ? { ...prev, value } : prev))
+                }
                 pinned
                 isScrolling={isScrolling}
                 loadingCell={slots.loadingCell}
@@ -1051,6 +1419,10 @@ function LatticeGridInner<TData = unknown>({
           <DataCell
             column={frozenColDef}
             row={row}
+            rowIndex={ri}
+            colIndex={visibleColIndexById.get(frozenColDef.id) ?? 0}
+            selected={isSel}
+            ariaHidden
             pinned
             isScrolling={isScrolling}
             loadingCell={slots.loadingCell}
@@ -1316,11 +1688,11 @@ function LatticeGridInner<TData = unknown>({
       style={{ fontSize: 12, color: "var(--vg-text-dim)", fontWeight: 500 }}
     >
       {sortedData.length.toLocaleString()} {texts.rows}
-      {selectedRowKey && (
+      {selectedRowKeys.size > 0 && (
         <span
           style={{ marginLeft: 8, color: "var(--vg-accent)", fontWeight: 600 }}
         >
-          · 1 {texts.selected}
+          · {selectedRowKeys.size.toLocaleString()} {texts.selected}
         </span>
       )}
     </span>
@@ -1362,6 +1734,7 @@ function LatticeGridInner<TData = unknown>({
         aria-label={ariaLabel}
         aria-rowcount={sortedData.length}
         aria-colcount={visibleColumns.length}
+        onKeyDown={keyboard.handleKeyDown}
         className={
           [classNames.root, className].filter(Boolean).join(" ") || undefined
         }
@@ -1382,6 +1755,23 @@ function LatticeGridInner<TData = unknown>({
           ...style,
         }}
       >
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0, 0, 0, 0)",
+            whiteSpace: "nowrap",
+            border: 0,
+          }}
+        >
+          {announcement}
+        </div>
         {/* TOOLBAR */}
         {features.toolbar &&
           (slots.toolbar ? (

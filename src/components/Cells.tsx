@@ -26,6 +26,8 @@ interface DataCellProps {
   column: ResolvedColumn;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   row: any;
+  rowIndex: number;
+  colIndex: number;
   style: CSSProperties;
   /** Pass true for cells in the pinned overlay layer. */
   pinned?: boolean;
@@ -33,6 +35,15 @@ interface DataCellProps {
   isScrolling?: boolean;
   /** Custom placeholder rendered in deferred cells during scroll. */
   loadingCell?: ReactNode;
+  active?: boolean;
+  selected?: boolean;
+  editing?: boolean;
+  editValue?: string | undefined;
+  valueOverride?: unknown;
+  onFocusCell?: (rowIndex: number, colIndex: number) => void;
+  onStartEditing?: (rowIndex: number, colIndex: number) => void;
+  onEditValueChange?: (value: string) => void;
+  ariaHidden?: boolean;
 }
 
 function dataCellEqual(
@@ -42,8 +53,16 @@ function dataCellEqual(
   return (
     prev.column === next.column &&
     prev.row === next.row &&
+    prev.rowIndex === next.rowIndex &&
+    prev.colIndex === next.colIndex &&
     prev.pinned === next.pinned &&
     prev.isScrolling === next.isScrolling &&
+    prev.active === next.active &&
+    prev.selected === next.selected &&
+    prev.editing === next.editing &&
+    prev.editValue === next.editValue &&
+    prev.valueOverride === next.valueOverride &&
+    prev.ariaHidden === next.ariaHidden &&
     prev.style.left === next.style.left &&
     prev.style.top === next.style.top &&
     prev.style.width === next.style.width &&
@@ -73,10 +92,21 @@ function ShimmerPlaceholder() {
 export const DataCell = memo(function DataCell({
   column,
   row,
+  rowIndex,
+  colIndex,
   style,
   pinned = false,
   isScrolling = false,
   loadingCell,
+  active = false,
+  selected = false,
+  editing = false,
+  editValue = "",
+  valueOverride,
+  onFocusCell,
+  onStartEditing,
+  onEditValueChange,
+  ariaHidden = false,
 }: DataCellProps) {
   const { styles, classNames } = useGridContext();
 
@@ -85,6 +115,13 @@ export const DataCell = memo(function DataCell({
   if (isScrolling && column.deferRender && column.renderCell) {
     return (
       <div
+        role={ariaHidden ? undefined : "gridcell"}
+        aria-hidden={ariaHidden || undefined}
+        aria-colindex={colIndex + 1}
+        aria-selected={selected}
+        tabIndex={!ariaHidden && active ? 0 : -1}
+        data-grid-cell={ariaHidden ? undefined : `${rowIndex}:${colIndex}`}
+        onFocus={() => onFocusCell?.(rowIndex, colIndex)}
         style={{
           ...style,
           position: "absolute",
@@ -94,6 +131,8 @@ export const DataCell = memo(function DataCell({
           padding: "0 10px",
           boxSizing: "border-box",
           overflow: "hidden",
+          outline: active ? "2px solid var(--vg-accent)" : "none",
+          outlineOffset: -2,
         }}
       >
         {loadingCell ?? <ShimmerPlaceholder />}
@@ -101,9 +140,9 @@ export const DataCell = memo(function DataCell({
     );
   }
 
-  const rawValue = column.accessor
-    ? column.accessor(row)
-    : row[column.field ?? column.id];
+  const rawValue =
+    valueOverride ??
+    (column.accessor ? column.accessor(row) : row[column.field ?? column.id]);
 
   const content = column.renderCell
     ? column.renderCell(rawValue, row)
@@ -132,11 +171,23 @@ export const DataCell = memo(function DataCell({
 
   return (
     <div
+      role={ariaHidden ? undefined : "gridcell"}
+      aria-hidden={ariaHidden || undefined}
+      aria-colindex={colIndex + 1}
+      aria-selected={selected}
+      tabIndex={!ariaHidden && active ? 0 : -1}
+      data-grid-cell={ariaHidden ? undefined : `${rowIndex}:${colIndex}`}
       className={
         [classNames.cell, pinned ? classNames.pinnedCell : undefined]
           .filter(Boolean)
           .join(" ") || undefined
       }
+      onFocus={() => onFocusCell?.(rowIndex, colIndex)}
+      onClick={(e) => {
+        onFocusCell?.(rowIndex, colIndex);
+        e.currentTarget.focus({ preventScroll: true });
+      }}
+      onDoubleClick={() => onStartEditing?.(rowIndex, colIndex)}
       style={{
         ...style,
         position: "absolute",
@@ -151,11 +202,35 @@ export const DataCell = memo(function DataCell({
         overflow: "hidden",
         whiteSpace: "nowrap",
         textOverflow: "ellipsis",
+        outline: active ? "2px solid var(--vg-accent)" : "none",
+        outlineOffset: -2,
+        zIndex: active ? Math.max(Number(style.zIndex ?? 0), 7) : style.zIndex,
         ...colCellStyle,
         ...cellOverrides,
       }}
     >
-      {content}
+      {editing ? (
+        <input
+          aria-label={`Edit ${column.label}`}
+          value={editValue}
+          onChange={(e) => onEditValueChange?.(e.target.value)}
+          style={{
+            width: "100%",
+            height: "calc(100% - 6px)",
+            border: "1px solid var(--vg-accent)",
+            borderRadius: 3,
+            padding: "0 6px",
+            boxSizing: "border-box",
+            font: "inherit",
+            color: "var(--vg-text)",
+            background: "var(--vg-bg)",
+            outline: "none",
+          }}
+          autoFocus
+        />
+      ) : (
+        content
+      )}
     </div>
   );
 }, dataCellEqual);

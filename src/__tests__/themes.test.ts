@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { resolveTokens, GRID_THEMES } from '../src/core/themes';
+import { resolveTokens, GRID_THEMES } from '../core/themes';
 
 describe('resolveTokens', () => {
   it('returns light theme for undefined', () => {

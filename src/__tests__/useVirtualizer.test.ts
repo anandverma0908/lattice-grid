@@ -4,8 +4,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useVirtualRows, useVirtualCols, buildColumnOffsets } from '../src/hooks/useVirtualizer';
-import type { ResolvedColumn } from '../src/types';
+import { useVirtualRows, useVirtualCols, buildColumnOffsets } from '../hooks/useVirtualizer';
+import type { ResolvedColumn } from '../types';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,12 +43,12 @@ describe('useVirtualRows', () => {
   });
 
   it('advances startIndex when scrolled past overscan region', () => {
-    // ROW_HEIGHT = 36, OVERSCAN = 6 → first visible at scroll 36*10 = 360
-    // startIndex = max(0, 10 - 6) = 4
+    // ROW_HEIGHT = 36, OVERSCAN = 16 → first visible at scroll 36*10 = 360
+    // startIndex = max(0, 10 - 16) = 0
     const { result } = renderHook(() =>
       useVirtualRows({ rowCount: 500, rowHeight: 36, scrollTop: 360, viewportHeight: 400 }),
     );
-    expect(result.current.startIndex).toBe(4);
+    expect(result.current.startIndex).toBe(0);
   });
 
   it('does not exceed rowCount - 1 for endIndex', () => {

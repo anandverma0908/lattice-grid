@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useRowSelection } from '../src/hooks/useRowSelection';
+import { useRowSelection } from '../hooks/useRowSelection';
 
 interface Row { id: number; name: string }
 const data: Row[] = [
