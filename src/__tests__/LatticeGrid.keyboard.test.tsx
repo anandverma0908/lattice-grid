@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { LatticeGrid } from "../components/LatticeGrid";
 import type { ColumnDef } from "../types";
 
@@ -17,7 +17,7 @@ const rows: Row[] = [
 ];
 
 const columns: ColumnDef<Row>[] = [
-  { id: "id", label: "ID", field: "id", width: 80, editable: false },
+  { id: "id", label: "ID", field: "id", width: 80 },
   { id: "name", label: "Name", field: "name", width: 140 },
   { id: "status", label: "Status", field: "status", width: 120 },
 ];
@@ -44,6 +44,12 @@ async function cells() {
   return screen.findAllByRole("gridcell");
 }
 
+async function focusElement(element: HTMLElement) {
+  await act(async () => {
+    element.focus();
+  });
+}
+
 describe("LatticeGrid keyboard accessibility", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -59,13 +65,27 @@ describe("LatticeGrid keyboard accessibility", () => {
     const firstCell = renderedCells[0]!;
     expect(firstCell).toHaveAttribute("aria-colindex", "1");
     expect(firstCell).toHaveAttribute("tabindex", "0");
+    expect(firstCell).not.toHaveStyle({ outline: "2px solid var(--vg-accent)" });
     expect(renderedCells[1]).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("activates the grid only after focus enters through a cell", async () => {
+    renderGrid();
+    const firstCell = (await cells())[0]!;
+    expect(firstCell).toHaveAttribute("tabindex", "0");
+    expect(firstCell).not.toHaveStyle({ outline: "2px solid var(--vg-accent)" });
+
+    await focusElement(firstCell);
+
+    await waitFor(() =>
+      expect(firstCell).toHaveStyle({ outline: "2px solid var(--vg-accent)" }),
+    );
   });
 
   it("moves focus with arrows, Home/End, and preserves grid boundaries", async () => {
     renderGrid();
     const firstCell = (await cells())[0]!;
-    firstCell.focus();
+    await focusElement(firstCell);
 
     fireEvent.keyDown(firstCell, { key: "ArrowRight" });
     await waitFor(() => expect(document.activeElement).toHaveTextContent("Alpha"));
@@ -87,9 +107,9 @@ describe("LatticeGrid keyboard accessibility", () => {
   it("does not trap Tab focus outside the grid", async () => {
     renderGrid();
     const before = screen.getByRole("button", { name: "Before" });
-    before.focus();
+    await focusElement(before);
     fireEvent.keyDown(before, { key: "Tab" });
-    (await cells())[0]!.focus();
+    await focusElement((await cells())[0]!);
     fireEvent.keyDown(document.activeElement!, { key: "Tab" });
     screen.getByRole("button", { name: "After" }).focus();
     expect(document.activeElement).toHaveTextContent("After");
@@ -98,7 +118,7 @@ describe("LatticeGrid keyboard accessibility", () => {
   it("selects, toggles, range-selects, and announces rows from the keyboard", async () => {
     renderGrid();
     const firstCell = (await cells())[0]!;
-    firstCell.focus();
+    await focusElement(firstCell);
 
     fireEvent.keyDown(firstCell, { key: " " });
     await waitFor(() =>
@@ -113,22 +133,59 @@ describe("LatticeGrid keyboard accessibility", () => {
     expect(screen.getByText("Rows 1 through 2 selected")).toBeInTheDocument();
   });
 
-  it("starts, commits, and cancels editing with keyboard commands", async () => {
-    const onCellEdit = vi.fn();
-    renderGrid({ onCellEdit });
+  it("activates interactive elements supplied by renderCell", async () => {
+    renderGrid({
+      columns: [
+        columns[0]!,
+        {
+          id: "name",
+          label: "Name",
+          field: "name",
+          width: 140,
+          renderCell: (value) => (
+            <input aria-label="Custom name editor" defaultValue={String(value)} />
+          ),
+        },
+        columns[2]!,
+      ],
+    });
     const firstCell = (await cells())[0]!;
-    firstCell.focus();
+    await focusElement(firstCell);
     fireEvent.keyDown(firstCell, { key: "ArrowRight" });
-    await waitFor(() => expect(document.activeElement).toHaveTextContent("Alpha"));
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("aria-colindex", "2"),
+    );
 
     fireEvent.keyDown(document.activeElement!, { key: "Enter" });
-    const input = await screen.findByRole("textbox", { name: "Edit Name" });
-    fireEvent.change(input, { target: { value: "Alpha Prime" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    const input = screen.getAllByRole("textbox", {
+      name: "Custom name editor",
+    })[0]!;
+    await waitFor(() => expect(document.activeElement).toBe(input));
 
-    await waitFor(() => expect(onCellEdit).toHaveBeenCalledWith(rows[0], 0, expect.objectContaining({ id: "name" }), "Alpha Prime"));
-    expect(screen.getByText("Editing completed")).toBeInTheDocument();
-    expect(screen.getByText("Alpha Prime")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("does not create editors for plain cells", async () => {
+    renderGrid();
+    const firstCell = (await cells())[0]!;
+    await focusElement(firstCell);
+
+    fireEvent.keyDown(firstCell, { key: "End" });
+    await waitFor(() => expect(document.activeElement).toHaveTextContent("Open"));
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("preserves mouse click row behavior", async () => {
+    const onRowClick = vi.fn();
+    renderGrid({ onRowClick });
+    const firstCell = (await cells())[0]!;
+
+    fireEvent.click(firstCell);
+
+    expect(onRowClick).toHaveBeenCalledWith(rows[0], 0);
   });
 
   it("handles Delete and Insert row operations through callbacks", async () => {
@@ -137,7 +194,7 @@ describe("LatticeGrid keyboard accessibility", () => {
     const onRowInsert = vi.fn();
     renderGrid({ onRowsDelete, onRowInsert });
     const firstCell = (await cells())[0]!;
-    firstCell.focus();
+    await focusElement(firstCell);
 
     fireEvent.keyDown(firstCell, { key: " " });
     fireEvent.keyDown(document.activeElement!, { key: "Delete" });

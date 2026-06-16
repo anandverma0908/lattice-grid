@@ -139,7 +139,6 @@ function LatticeGridInner<TData = unknown>({
   onColumnReorder,
   onRowsDelete,
   onRowInsert,
-  onCellEdit,
   sortMode = "client",
   ariaLabel = "Data grid",
   className,
@@ -537,26 +536,14 @@ function LatticeGridInner<TData = unknown>({
   );
 
   const [announcement, setAnnouncement] = useState("");
-  const [editingCell, setEditingCell] = useState<{
-    rowIndex: number;
-    colIndex: number;
-    initialValue: string;
-    value: string;
-  } | null>(null);
-  const [editedValues, setEditedValues] = useState<Map<string, string>>(
-    () => new Map(),
-  );
-  const [pendingFocus, setPendingFocus] = useState<FocusedCell | null>(null);
 
   const getRawCellValue = useCallback(
     (row: TData, rowIndex: number, column: ResolvedColumn<TData>) => {
-      const key = `${getRowKey(row, rowIndex)}:${column.id}`;
-      if (editedValues.has(key)) return editedValues.get(key);
       return column.accessor
         ? column.accessor(row)
         : (row as Record<string, unknown>)[column.field ?? column.id];
     },
-    [editedValues, getRowKey],
+    [],
   );
 
   const scrollToCell = useCallback(
@@ -648,69 +635,26 @@ function LatticeGridInner<TData = unknown>({
     setAnnouncement(`All ${sortedData.length} rows selected`);
   }, [features.rowSelection, getRowKey, sortedData]);
 
-  const startEditing = useCallback(
-    (cell: FocusedCell) => {
-      const row = sortedData[cell.rowIndex];
-      const column = visibleColumns[cell.colIndex];
-      if (!row || !column || !column.editable) return;
-      const raw = getRawCellValue(row, cell.rowIndex, column);
-      const value = raw == null ? "" : String(raw);
-      setEditingCell({ ...cell, initialValue: value, value });
-      setAnnouncement("Editing started");
-    },
-    [getRawCellValue, sortedData, visibleColumns],
-  );
-
-  const moveToEditableCell = useCallback(
-    (from: FocusedCell, direction: 1 | -1): FocusedCell | null => {
-      let rowIndex = from.rowIndex;
-      let colIndex = from.colIndex + direction;
-      while (rowIndex >= 0 && rowIndex < sortedData.length) {
-        while (colIndex >= 0 && colIndex < visibleColumns.length) {
-          if (visibleColumns[colIndex]?.editable) return { rowIndex, colIndex };
-          colIndex += direction;
-        }
-        rowIndex += direction;
-        colIndex = direction > 0 ? 0 : visibleColumns.length - 1;
-      }
-      return null;
-    },
-    [sortedData.length, visibleColumns],
-  );
-
-  const commitEditing = useCallback(
-    (move?: "next" | "previous") => {
-      if (!editingCell) return;
-      const row = sortedData[editingCell.rowIndex];
-      const column = visibleColumns[editingCell.colIndex];
-      if (row && column) {
-        const key = `${getRowKey(row, editingCell.rowIndex)}:${column.id}`;
-        setEditedValues((prev) => new Map(prev).set(key, editingCell.value));
-        onCellEdit?.(row, editingCell.rowIndex, column, editingCell.value);
-      }
-      setEditingCell(null);
-      setAnnouncement("Editing completed");
-      if (move) {
-        const next = moveToEditableCell(
-          editingCell,
-          move === "next" ? 1 : -1,
-        );
-        if (next) setPendingFocus(next);
-      }
-    },
-    [
-      editingCell,
-      getRowKey,
-      moveToEditableCell,
-      onCellEdit,
-      sortedData,
-      visibleColumns,
-    ],
-  );
-
-  const cancelEditing = useCallback(() => {
-    setEditingCell(null);
-    setAnnouncement("Editing cancelled");
+  const activateRenderedCell = useCallback((cell: FocusedCell) => {
+    const cellEl = scrollAreaRef.current?.querySelector<HTMLElement>(
+      `[data-grid-cell="${cell.rowIndex}:${cell.colIndex}"]`,
+    );
+    const target = cellEl?.querySelector<HTMLElement>(
+      'input:not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), a[href], [contenteditable="true"], [tabindex]:not([tabindex="-1"]), [role="button"], [role="textbox"], [role="checkbox"], [role="combobox"], [role="switch"], [role="spinbutton"]',
+    );
+    if (!target) return;
+    try {
+      target.focus({ preventScroll: true });
+    } catch {
+      target.focus();
+    }
+    if (
+      target.matches(
+        'button:not([disabled]), a[href], [role="button"], [role="checkbox"], [role="switch"]',
+      )
+    ) {
+      target.click();
+    }
   }, []);
 
   const deleteSelectedRows = useCallback(() => {
@@ -768,16 +712,12 @@ function LatticeGridInner<TData = unknown>({
     rowCount: sortedData.length,
     colCount: visibleColumns.length,
     visibleRowCount,
-    isEditing: editingCell !== null,
-    isEditableCell: (cell) => visibleColumns[cell.colIndex]?.editable ?? false,
     onFocusCell: scrollToCell,
     onSelectRow: selectRowByIndex,
     onToggleRow: (rowIndex) => selectRowByIndex(rowIndex, true),
     onSelectRange: selectRangeByIndex,
     onSelectAll: selectAllRows,
-    onStartEditing: startEditing,
-    onCommitEditing: commitEditing,
-    onCancelEditing: cancelEditing,
+    onActivateCell: activateRenderedCell,
     onDeleteRows: deleteSelectedRows,
     onInsertRow: () => {
       onRowInsert?.();
@@ -793,17 +733,17 @@ function LatticeGridInner<TData = unknown>({
     onReorderColumn: reorderColumnByKeyboard,
   });
 
-  useEffect(() => {
-    if (!pendingFocus) return;
-    keyboard.moveFocus(pendingFocus);
-    setPendingFocus(null);
-  }, [keyboard, pendingFocus]);
-
   React.useLayoutEffect(() => {
     const cell = keyboard.focusedCell;
     if (!cell) return;
     const activeElement = document.activeElement;
     if (!activeElement || !scrollAreaRef.current?.contains(activeElement)) {
+      return;
+    }
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement.getAttribute("role") !== "gridcell"
+    ) {
       return;
     }
     const el = scrollAreaRef.current?.querySelector<HTMLElement>(
@@ -1140,8 +1080,9 @@ function LatticeGridInner<TData = unknown>({
       const isActive =
         keyboard.focusedCell?.rowIndex === rowIndex &&
         keyboard.focusedCell.colIndex === colIndex;
-      const isEditing =
-        editingCell?.rowIndex === rowIndex && editingCell.colIndex === colIndex;
+      const isFocusable =
+        isActive ||
+        (!keyboard.focusedCell && rowIndex === 0 && colIndex === 0);
       cells.push(
         <DataCell
           key={`ds-${col.id}`}
@@ -1151,13 +1092,11 @@ function LatticeGridInner<TData = unknown>({
           colIndex={colIndex}
           valueOverride={getRawCellValue(row, rowIndex, col)}
           active={isActive}
+          focusable={isFocusable}
           selected={isSel}
-          editing={isEditing}
-          editValue={isEditing ? editingCell.value : undefined}
           onFocusCell={(ri, ci) => keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })}
-          onStartEditing={(ri, ci) => startEditing({ rowIndex: ri, colIndex: ci })}
-          onEditValueChange={(value) =>
-            setEditingCell((prev) => (prev ? { ...prev, value } : prev))
+          onActivateCell={(ri, ci) =>
+            activateRenderedCell({ rowIndex: ri, colIndex: ci })
           }
           isScrolling={isScrolling}
           loadingCell={slots.loadingCell}
@@ -1189,9 +1128,9 @@ function LatticeGridInner<TData = unknown>({
             const isActive =
               keyboard.focusedCell?.rowIndex === rowIndex &&
               keyboard.focusedCell.colIndex === colIndex;
-            const isEditing =
-              editingCell?.rowIndex === rowIndex &&
-              editingCell.colIndex === colIndex;
+            const isFocusable =
+              isActive ||
+              (!keyboard.focusedCell && rowIndex === 0 && colIndex === 0);
             return (
               <DataCell
                 key={`ps-l-${col.id}`}
@@ -1201,17 +1140,13 @@ function LatticeGridInner<TData = unknown>({
                 colIndex={colIndex}
                 valueOverride={getRawCellValue(row, rowIndex, col)}
                 active={isActive}
+                focusable={isFocusable}
                 selected={isSel}
-                editing={isEditing}
-                editValue={isEditing ? editingCell.value : undefined}
                 onFocusCell={(ri, ci) =>
                   keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })
                 }
-                onStartEditing={(ri, ci) =>
-                  startEditing({ rowIndex: ri, colIndex: ci })
-                }
-                onEditValueChange={(value) =>
-                  setEditingCell((prev) => (prev ? { ...prev, value } : prev))
+                onActivateCell={(ri, ci) =>
+                  activateRenderedCell({ rowIndex: ri, colIndex: ci })
                 }
                 pinned
                 isScrolling={isScrolling}
@@ -1240,9 +1175,9 @@ function LatticeGridInner<TData = unknown>({
             const isActive =
               keyboard.focusedCell?.rowIndex === rowIndex &&
               keyboard.focusedCell.colIndex === colIndex;
-            const isEditing =
-              editingCell?.rowIndex === rowIndex &&
-              editingCell.colIndex === colIndex;
+            const isFocusable =
+              isActive ||
+              (!keyboard.focusedCell && rowIndex === 0 && colIndex === 0);
             return (
               <DataCell
                 key={`ps-r-${col.id}`}
@@ -1252,17 +1187,13 @@ function LatticeGridInner<TData = unknown>({
                 colIndex={colIndex}
                 valueOverride={getRawCellValue(row, rowIndex, col)}
                 active={isActive}
+                focusable={isFocusable}
                 selected={isSel}
-                editing={isEditing}
-                editValue={isEditing ? editingCell.value : undefined}
                 onFocusCell={(ri, ci) =>
                   keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })
                 }
-                onStartEditing={(ri, ci) =>
-                  startEditing({ rowIndex: ri, colIndex: ci })
-                }
-                onEditValueChange={(value) =>
-                  setEditingCell((prev) => (prev ? { ...prev, value } : prev))
+                onActivateCell={(ri, ci) =>
+                  activateRenderedCell({ rowIndex: ri, colIndex: ci })
                 }
                 pinned
                 isScrolling={isScrolling}

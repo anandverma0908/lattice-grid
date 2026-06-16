@@ -11,25 +11,16 @@ export interface FocusedCell {
   colIndex: number;
 }
 
-export interface EditingCell extends FocusedCell {
-  initialValue: string;
-  value: string;
-}
-
 export interface UseGridKeyboardOptions {
   rowCount: number;
   colCount: number;
   visibleRowCount?: number;
-  isEditing?: boolean;
-  isEditableCell?: (cell: FocusedCell) => boolean;
   onFocusCell?: (cell: FocusedCell) => void;
   onSelectRow?: (rowIndex: number, additive: boolean) => void;
   onToggleRow?: (rowIndex: number) => void;
   onSelectRange?: (fromRowIndex: number, toRowIndex: number) => void;
   onSelectAll?: () => void;
-  onStartEditing?: (cell: FocusedCell) => void;
-  onCommitEditing?: (move?: "next" | "previous") => void;
-  onCancelEditing?: () => void;
+  onActivateCell?: (cell: FocusedCell) => void;
   onDeleteRows?: () => void;
   onInsertRow?: () => void;
   onResizeColumn?: (colIndex: number, delta: number) => void;
@@ -47,6 +38,16 @@ type KeyboardAction = { type: "SET"; cell: FocusedCell | null };
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
+}
+
+function isInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement
+    ? Boolean(
+        target.closest(
+          'input, textarea, select, button, a[href], [contenteditable="true"], [role="button"], [role="textbox"], [role="checkbox"], [role="combobox"], [role="switch"], [role="spinbutton"]',
+        ),
+      )
+    : false;
 }
 
 function normalizeCell(
@@ -72,25 +73,18 @@ export function useGridKeyboard({
   rowCount,
   colCount,
   visibleRowCount = 20,
-  isEditing = false,
-  isEditableCell = () => true,
   onFocusCell,
   onSelectRow,
   onToggleRow,
   onSelectRange,
   onSelectAll,
-  onStartEditing,
-  onCommitEditing,
-  onCancelEditing,
+  onActivateCell,
   onDeleteRows,
   onInsertRow,
   onResizeColumn,
   onReorderColumn,
 }: UseGridKeyboardOptions): UseGridKeyboardReturn {
-  const [focusedCell, dispatch] = useReducer(
-    keyboardReducer,
-    rowCount > 0 && colCount > 0 ? { rowIndex: 0, colIndex: 0 } : null,
-  );
+  const [focusedCell, dispatch] = useReducer(keyboardReducer, null);
 
   const moveFocus = useCallback(
     (cell: FocusedCell) => {
@@ -135,26 +129,10 @@ export function useGridKeyboard({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (rowCount === 0 || colCount === 0) return;
+      if (isInteractiveTarget(e.target)) return;
 
       const active = focusedCell ?? { rowIndex: 0, colIndex: 0 };
       const mod = e.ctrlKey || e.metaKey;
-
-      if (isEditing) {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          onCancelEditing?.();
-        } else if (e.key === "Enter") {
-          e.preventDefault();
-          onCommitEditing?.();
-        } else if (e.key === "F2") {
-          e.preventDefault();
-          onCommitEditing?.();
-        } else if (e.key === "Tab") {
-          e.preventDefault();
-          onCommitEditing?.(e.shiftKey ? "previous" : "next");
-        }
-        return;
-      }
 
       if (mod && e.key.toLowerCase() === "a") {
         e.preventDefault();
@@ -238,11 +216,11 @@ export function useGridKeyboard({
           break;
         case "Enter":
           e.preventDefault();
-          if (isEditableCell(active)) onStartEditing?.(active);
+          onActivateCell?.(active);
           break;
         case "F2":
           e.preventDefault();
-          if (isEditableCell(active)) onStartEditing?.(active);
+          onActivateCell?.(active);
           break;
         case "Delete":
           e.preventDefault();
@@ -261,12 +239,8 @@ export function useGridKeyboard({
       colCount,
       visibleRowCount,
       focusedCell,
-      isEditing,
-      isEditableCell,
       moveBy,
       moveFocus,
-      onCancelEditing,
-      onCommitEditing,
       onDeleteRows,
       onInsertRow,
       onReorderColumn,
@@ -274,7 +248,7 @@ export function useGridKeyboard({
       onSelectAll,
       onSelectRange,
       onSelectRow,
-      onStartEditing,
+      onActivateCell,
       onToggleRow,
     ],
   );

@@ -288,7 +288,6 @@ export function useGridEngine<TData>(
         resizable: leaf.resizable ?? true,
         draggable: leaf.draggable ?? true,
         hideable: leaf.hideable ?? true,
-        editable: leaf.editable ?? true,
         groupId: leaf.groupId,
         defIndex: leaf.defIndex,
         width: record.width,
