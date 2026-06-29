@@ -1,4 +1,4 @@
-# @lattice-grid-lib/core
+# @lattice-grid-lib/core || lattice-grid-playground.vercel.app
 
 A high-performance, fully-customisable React data grid with row & column virtualisation.
 
