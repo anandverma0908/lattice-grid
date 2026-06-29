@@ -34,7 +34,12 @@ import {
 } from "../hooks/useVirtualizer";
 import { useColumnResize } from "../hooks/useColumnResize";
 import { useColumnDrag } from "../hooks/useColumnDrag";
-import { useGridKeyboard, type FocusedCell } from "../hooks/useGridKeyboard";
+import {
+  useGridKeyboard,
+  type FocusedCell,
+  type FocusTarget,
+} from "../hooks/useGridKeyboard";
+import { findFocusableInGrid } from "../hooks/keyboardUtils";
 import { GridContextProvider } from "../core/GridContext";
 import { resolveTokens, tokensToStyle } from "../core/themes";
 import { HeaderCell } from "./HeaderCell";
@@ -349,6 +354,7 @@ function LatticeGridInner<TData = unknown>({
   );
 
   // ── Scroll ───────────────────────────────────────────────────────────────────
+  const gridRootRef = useRef<HTMLDivElement>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const scrollLeftRef = useRef(0);
   const scrollTopRef = useRef(0);
@@ -609,6 +615,12 @@ function LatticeGridInner<TData = unknown>({
 
   const [announcement, setAnnouncement] = useState("");
 
+  const visibleColIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    visibleColumns.forEach((col, index) => map.set(col.id, index));
+    return map;
+  }, [visibleColumns]);
+
   const getRawCellValue = useCallback(
     (row: TData, rowIndex: number, column: ResolvedColumn<TData>) => {
       return column.accessor
@@ -658,6 +670,60 @@ function LatticeGridInner<TData = unknown>({
       visibleColumns,
     ],
   );
+
+  const scrollToColumn = useCallback(
+    (colIndex: number) => {
+      const el = scrollAreaRef.current;
+      if (!el) return;
+      const col = visibleColumns[colIndex];
+      if (!col || col.pinned) return;
+      const scIdx = scrollableColumns.findIndex((c) => c.id === col.id);
+      if (scIdx < 0) return;
+      const colLeft = pinnedLeftWidth + (offsets[scIdx] ?? 0);
+      const colRight = colLeft + col.width;
+      const viewportLeft = el.scrollLeft + pinnedLeftWidth;
+      const viewportRight = el.scrollLeft + bodyWrapW - pinnedRightWidth;
+      if (colLeft < viewportLeft) {
+        el.scrollLeft = Math.max(0, colLeft - pinnedLeftWidth);
+      } else if (colRight > viewportRight) {
+        el.scrollLeft = Math.max(0, colRight - bodyWrapW + pinnedRightWidth);
+      }
+      handleScroll();
+    },
+    [
+      bodyWrapW,
+      handleScroll,
+      offsets,
+      pinnedLeftWidth,
+      pinnedRightWidth,
+      scrollableColumns,
+      visibleColumns,
+    ],
+  );
+
+  const headerTargets = useMemo<FocusTarget[]>(() => {
+    const targets: FocusTarget[] = [];
+    if (hasGroups) {
+      for (const group of groups) {
+        const childIndexes = group.children
+          .map((child) => visibleColIndexById.get(child.id))
+          .filter((index): index is number => typeof index === "number")
+          .sort((a, b) => a - b);
+        if (childIndexes.length > 0) {
+          targets.push({
+            kind: "groupHeader",
+            groupId: group.id,
+            colStartIndex: childIndexes[0]!,
+            colEndIndex: childIndexes[childIndexes.length - 1]!,
+          });
+        }
+      }
+    }
+    for (let colIndex = 0; colIndex < visibleColumns.length; colIndex++) {
+      targets.push({ kind: "header", colIndex });
+    }
+    return targets;
+  }, [groups, hasGroups, visibleColIndexById, visibleColumns.length]);
 
   const selectRowByIndex = useCallback(
     (rowIndex: number, additive: boolean) => {
@@ -789,12 +855,26 @@ function LatticeGridInner<TData = unknown>({
     rowCount: visibleRows.length,
     colCount: visibleColumns.length,
     visibleRowCount,
+    headerTargets,
+    getRowGroup: (rowIndex) => {
+      const item = visibleRows[rowIndex];
+      return item?.type === "group"
+        ? { id: item.id, expanded: item.expanded }
+        : null;
+    },
     onFocusCell: scrollToCell,
+    onFocusHeader: scrollToColumn,
     onSelectRow: selectRowByIndex,
     onToggleRow: (rowIndex) => selectRowByIndex(rowIndex, true),
     onSelectRange: selectRangeByIndex,
     onSelectAll: selectAllRows,
     onActivateCell: activateRenderedCell,
+    onToggleGroup: toggleGroup,
+    onToggleHeaderSort: (colIndex) => {
+      const col = visibleColumns[colIndex];
+      if (!col || !features.sort || !col.sortable) return;
+      engine.toggleSort(col.id);
+    },
     onDeleteRows: deleteSelectedRows,
     onInsertRow: () => {
       onRowInsert?.();
@@ -811,22 +891,41 @@ function LatticeGridInner<TData = unknown>({
   });
 
   React.useLayoutEffect(() => {
-    const cell = keyboard.focusedCell;
-    if (!cell) return;
+    const target = keyboard.focusedTarget;
+    if (!target) return;
     const activeElement = document.activeElement;
-    if (!activeElement || !scrollAreaRef.current?.contains(activeElement)) {
+    if (!activeElement || !gridRootRef.current?.contains(activeElement)) {
       return;
     }
     if (
       activeElement instanceof HTMLElement &&
-      activeElement.getAttribute("role") !== "gridcell"
+      activeElement !== gridRootRef.current &&
+      activeElement.getAttribute("role") !== "gridcell" &&
+      activeElement.getAttribute("role") !== "columnheader"
     ) {
       return;
     }
-    const el = scrollAreaRef.current?.querySelector<HTMLElement>(
-      `[data-grid-cell="${cell.rowIndex}:${cell.colIndex}"]`,
-    );
-    el?.focus({ preventScroll: true });
+    const root = gridRootRef.current;
+    const el =
+      target.kind === "groupHeader"
+        ? Array.from(
+            root.querySelectorAll<HTMLElement>("[data-grid-group-header]"),
+          ).find(
+            (candidate) =>
+              candidate.dataset.gridGroupHeader === target.groupId &&
+              candidate.getAttribute("aria-hidden") !== "true",
+          )
+        : findFocusableInGrid(
+            root,
+            target.kind === "cell"
+              ? `[data-grid-cell="${target.rowIndex}:${target.colIndex}"]`
+              : `[data-grid-header-cell="${target.colIndex}"]`,
+          );
+    try {
+      el?.focus({ preventScroll: true });
+    } catch {
+      el?.focus();
+    }
   });
 
   // ── Ungrouped scrollable → rowspan=2 ─────────────────────────────────────────
@@ -836,12 +935,6 @@ function LatticeGridInner<TData = unknown>({
       scrollableColumns.filter((c) => !inGroup.has(c.id)).map((c) => c.id),
     );
   }, [groups, scrollableColumns]);
-
-  const visibleColIndexById = useMemo(() => {
-    const map = new Map<string, number>();
-    visibleColumns.forEach((col, index) => map.set(col.id, index));
-    return map;
-  }, [visibleColumns]);
 
   // ── Hooks ─────────────────────────────────────────────────────────────────────
   const orderedColumnsRef = useRef(engine.orderedColumns);
@@ -1019,6 +1112,39 @@ function LatticeGridInner<TData = unknown>({
   //  SCROLLABLE HEADER
   // ═══════════════════════════════════════════════════════════════════════════
 
+  const headerKeyboardProps = (column: ResolvedColumn<TData>) => {
+    const colIndex = visibleColIndexById.get(column.id) ?? 0;
+    return {
+      colIndex,
+      active: keyboard.isHeaderFocused(colIndex),
+      focusable: keyboard.isHeaderFocused(colIndex),
+      onFocusHeader: (nextColIndex: number) =>
+        keyboard.setFocusedTarget({ kind: "header", colIndex: nextColIndex }),
+    };
+  };
+
+  const groupHeaderKeyboardProps = (
+    groupId: string,
+    colStartIndex: number,
+    colEndIndex: number,
+  ) => ({
+    colStartIndex,
+    colEndIndex,
+    active: keyboard.isGroupHeaderFocused(groupId),
+    focusable: keyboard.isGroupHeaderFocused(groupId),
+    onFocusGroupHeader: (
+      nextGroupId: string,
+      nextColStartIndex: number,
+      nextColEndIndex: number,
+    ) =>
+      keyboard.setFocusedTarget({
+        kind: "groupHeader",
+        groupId: nextGroupId,
+        colStartIndex: nextColStartIndex,
+        colEndIndex: nextColEndIndex,
+      }),
+  });
+
   const renderScrollableGroupRow = (): React.ReactNode => {
     const cells: React.ReactNode[] = [];
     const rendered = new Set<string>();
@@ -1031,6 +1157,7 @@ function LatticeGridInner<TData = unknown>({
           <HeaderCell
             key={`hspan-${col.id}`}
             column={col}
+            {...headerKeyboardProps(col)}
             style={{
               position: "absolute",
               left,
@@ -1054,10 +1181,19 @@ function LatticeGridInner<TData = unknown>({
       const firstIdx = scrollableColumns.findIndex(
         (c) => c.id === grpLeaves[0]?.id,
       );
+      const groupLeafIndexes = grpLeaves
+        .map((leaf) => visibleColIndexById.get(leaf.id))
+        .filter((index): index is number => typeof index === "number")
+        .sort((a, b) => a - b);
       cells.push(
         <GroupHeaderCell
           key={`grp-${grp.id}`}
           group={grp}
+          {...groupHeaderKeyboardProps(
+            grp.id,
+            groupLeafIndexes[0] ?? 0,
+            groupLeafIndexes[groupLeafIndexes.length - 1] ?? 0,
+          )}
           left={pinnedLeftWidth + (offsets[firstIdx] ?? 0)}
           width={grpWidth}
           height={groupHeaderHeight}
@@ -1088,6 +1224,7 @@ function LatticeGridInner<TData = unknown>({
         <HeaderCell
           key={`lh-${col.id}`}
           column={col}
+          {...headerKeyboardProps(col)}
           isFirst={isFirstInGroup}
           isLast={isLast}
           style={{
@@ -1117,6 +1254,7 @@ function LatticeGridInner<TData = unknown>({
         <HeaderCell
           key={`fh-${col.id}`}
           column={col}
+          {...headerKeyboardProps(col)}
           isFirst={pos === 0}
           isLast={pos === indices.length - 1}
           style={{
@@ -1151,6 +1289,11 @@ function LatticeGridInner<TData = unknown>({
       0,
       canvasW - pinnedLeftWidth - pinnedRightWidth,
     );
+    const isActive =
+      keyboard.focusedCell?.rowIndex === rowIndex &&
+      keyboard.focusedCell.colIndex === 0;
+    const isFocusable =
+      isActive || (!keyboard.focusedCell && rowIndex === 0);
 
     return (
       <div
@@ -1181,12 +1324,7 @@ function LatticeGridInner<TData = unknown>({
           role="gridcell"
           aria-colindex={1}
           data-grid-cell={`${rowIndex}:0`}
-          tabIndex={
-            keyboard.focusedCell?.rowIndex === rowIndex &&
-            keyboard.focusedCell.colIndex === 0
-              ? 0
-              : -1
-          }
+          tabIndex={isFocusable ? 0 : -1}
           onFocus={(e) => {
             if (e.target === e.currentTarget) {
               keyboard.setFocusedCell({ rowIndex, colIndex: 0 });
@@ -1211,11 +1349,7 @@ function LatticeGridInner<TData = unknown>({
             whiteSpace: "nowrap",
             textOverflow: "ellipsis",
             cursor: "pointer",
-            outline:
-              keyboard.focusedCell?.rowIndex === rowIndex &&
-              keyboard.focusedCell.colIndex === 0
-                ? "2px solid var(--vg-accent)"
-                : "none",
+            outline: isActive ? "2px solid var(--vg-accent)" : "none",
             outlineOffset: -2,
           }}
         >
@@ -1632,6 +1766,7 @@ function LatticeGridInner<TData = unknown>({
             <HeaderCell
               key={`ph-span-${col.id}`}
               column={col}
+              {...headerKeyboardProps(col)}
               isFirst={i === 0}
               isLast={i === cols.length - 1}
               style={{
@@ -1653,10 +1788,19 @@ function LatticeGridInner<TData = unknown>({
             if (grp) {
               const grpCols = cols.filter((c) => c.groupId === col.groupId);
               const grpWidth = grpCols.reduce((s, c) => s + c.width, 0);
+              const groupLeafIndexes = grpCols
+                .map((leaf) => visibleColIndexById.get(leaf.id))
+                .filter((index): index is number => typeof index === "number")
+                .sort((a, b) => a - b);
               headerCells.push(
                 <GroupHeaderCell
                   key={`pgh-${grp.id}`}
                   group={grp}
+                  {...groupHeaderKeyboardProps(
+                    grp.id,
+                    groupLeafIndexes[0] ?? 0,
+                    groupLeafIndexes[groupLeafIndexes.length - 1] ?? 0,
+                  )}
                   left={colLefts[i] ?? 0}
                   width={grpWidth}
                   height={groupHeaderHeight}
@@ -1669,6 +1813,7 @@ function LatticeGridInner<TData = unknown>({
             <HeaderCell
               key={`ph-leaf-${col.id}`}
               column={col}
+              {...headerKeyboardProps(col)}
               isFirst={i === 0 || cols[i - 1]?.groupId !== col.groupId}
               isLast={
                 i === cols.length - 1 || cols[i + 1]?.groupId !== col.groupId
@@ -1729,6 +1874,7 @@ function LatticeGridInner<TData = unknown>({
           <HeaderCell
             key={`ph-${col.id}`}
             column={col}
+            {...headerKeyboardProps(col)}
             isFirst={i === 0}
             isLast={i === cols.length - 1}
             style={{
@@ -1748,6 +1894,7 @@ function LatticeGridInner<TData = unknown>({
           <HeaderCell
             key={`ph-frozen-${frozenCol.id}`}
             column={frozenCol}
+            {...headerKeyboardProps(frozenCol)}
             style={{
               position: "absolute",
               left: frozenSlotLeft,
@@ -1876,6 +2023,7 @@ function LatticeGridInner<TData = unknown>({
   return (
     <GridContextProvider value={contextValue}>
       <div
+        ref={gridRootRef}
         role="grid"
         aria-label={ariaLabel}
         aria-rowcount={visibleRows.length}

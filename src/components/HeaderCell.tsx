@@ -11,10 +11,14 @@ import { useGridContext } from "../core/GridContext";
 
 interface HeaderCellProps {
   column: ResolvedColumn;
+  colIndex: number;
   style: CSSProperties;
   showResizeHandle?: boolean;
   isFirst?: boolean;
   isLast?: boolean;
+  active?: boolean;
+  focusable?: boolean;
+  onFocusHeader?: (colIndex: number) => void;
 }
 
 function DefaultSortIcon({
@@ -70,10 +74,14 @@ function DefaultHideIcon() {
 
 export const HeaderCell = memo(function HeaderCell({
   column,
+  colIndex,
   style,
   showResizeHandle = true,
   isFirst = false,
   isLast = false,
+  active = false,
+  focusable = active,
+  onFocusHeader,
 }: HeaderCellProps) {
   const {
     engine,
@@ -139,6 +147,8 @@ export const HeaderCell = memo(function HeaderCell({
   return (
     <div
       role="columnheader"
+      data-grid-header-cell={colIndex}
+      tabIndex={focusable ? 0 : -1}
       aria-sort={
         isSorted
           ? sortState.direction === "asc"
@@ -149,6 +159,9 @@ export const HeaderCell = memo(function HeaderCell({
       className={classNames.headerCell ?? undefined}
       {...dragProps}
       onClick={handleClick}
+      onFocus={(e) => {
+        if (e.target === e.currentTarget) onFocusHeader?.(colIndex);
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -178,7 +191,8 @@ export const HeaderCell = memo(function HeaderCell({
         overflow: "visible",
         whiteSpace: "nowrap",
         transition: "background var(--vg-transition)",
-        outline: "none",
+        outline: active ? "2px solid var(--vg-accent)" : "none",
+        outlineOffset: -2,
         ...column.headerStyle,
         ...styles.headerCell,
         ...(column.groupId ? styles.groupHeaderCell : {}),

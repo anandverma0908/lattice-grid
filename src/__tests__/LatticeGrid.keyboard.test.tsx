@@ -104,6 +104,77 @@ describe("LatticeGrid keyboard accessibility", () => {
     expect(document.activeElement).toHaveAttribute("aria-colindex", "1");
   });
 
+  it("moves from the first row to the header and back to the first row", async () => {
+    renderGrid();
+    const firstCell = (await cells())[0]!;
+    await focusElement(firstCell);
+
+    fireEvent.keyDown(firstCell, { key: "ArrowUp" });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-header-cell", "0"),
+    );
+    expect(document.activeElement).toHaveTextContent("ID");
+
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-cell", "0:0"),
+    );
+  });
+
+  it("navigates left and right across column headers", async () => {
+    renderGrid();
+    const firstCell = (await cells())[0]!;
+    await focusElement(firstCell);
+
+    fireEvent.keyDown(firstCell, { key: "ArrowUp" });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-header-cell", "0"),
+    );
+
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-header-cell", "1"),
+    );
+    expect(document.activeElement).toHaveTextContent("Name");
+
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowLeft" });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-header-cell", "0"),
+    );
+  });
+
+  it("supports document-edge and page navigation keys", async () => {
+    renderGrid();
+    const firstCell = (await cells())[0]!;
+    await focusElement(firstCell);
+
+    fireEvent.keyDown(firstCell, { key: "ArrowRight" });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-cell", "1:1"),
+    );
+
+    fireEvent.keyDown(document.activeElement!, { key: "End", ctrlKey: true });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-cell", "2:2"),
+    );
+
+    fireEvent.keyDown(document.activeElement!, { key: "Home", ctrlKey: true });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-cell", "0:0"),
+    );
+
+    fireEvent.keyDown(document.activeElement!, { key: "PageDown" });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-cell", "2:0"),
+    );
+
+    fireEvent.keyDown(document.activeElement!, { key: "PageUp" });
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-cell", "0:0"),
+    );
+  });
+
   it("does not trap Tab focus outside the grid", async () => {
     renderGrid();
     const before = screen.getByRole("button", { name: "Before" });
@@ -133,7 +204,20 @@ describe("LatticeGrid keyboard accessibility", () => {
     expect(screen.getByText("Rows 1 through 2 selected")).toBeInTheDocument();
   });
 
+  it("toggles row groups with Enter", async () => {
+    renderGrid({ groupBy: ["status"] });
+    const groupCell = await screen.findByText("Status: Open");
+    await focusElement(groupCell.closest<HTMLElement>("[data-grid-cell]")!);
+
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    expect(await screen.findByText("Alpha")).toBeInTheDocument();
+
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    await waitFor(() => expect(screen.queryByText("Alpha")).not.toBeInTheDocument());
+  });
+
   it("activates interactive elements supplied by renderCell", async () => {
+    const onInputKeyDown = vi.fn();
     renderGrid({
       columns: [
         columns[0]!,
@@ -143,7 +227,11 @@ describe("LatticeGrid keyboard accessibility", () => {
           field: "name",
           width: 140,
           renderCell: (value) => (
-            <input aria-label="Custom name editor" defaultValue={String(value)} />
+            <input
+              aria-label="Custom name editor"
+              defaultValue={String(value)}
+              onKeyDown={onInputKeyDown}
+            />
           ),
         },
         columns[2]!,
@@ -164,6 +252,7 @@ describe("LatticeGrid keyboard accessibility", () => {
 
     fireEvent.keyDown(input, { key: "ArrowRight" });
     expect(document.activeElement).toBe(input);
+    expect(onInputKeyDown).toHaveBeenCalled();
   });
 
   it("does not create editors for plain cells", async () => {

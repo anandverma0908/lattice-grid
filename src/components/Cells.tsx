@@ -224,22 +224,46 @@ export const DataCell = memo(function DataCell({
 
 interface GroupHeaderCellProps {
   group: GroupColumnDef;
+  colStartIndex: number;
+  colEndIndex: number;
   left: number;
   width: number;
   height: number;
+  active?: boolean;
+  focusable?: boolean;
+  onFocusGroupHeader?: (
+    groupId: string,
+    colStartIndex: number,
+    colEndIndex: number,
+  ) => void;
 }
 
 export const GroupHeaderCell = memo(function GroupHeaderCell({
   group,
+  colStartIndex,
+  colEndIndex,
   left,
   width,
   height,
+  active = false,
+  focusable = active,
+  onFocusGroupHeader,
 }: GroupHeaderCellProps) {
   const { classNames, styles } = useGridContext();
 
   return (
     <div
+      role="columnheader"
       className={classNames.groupRow || undefined}
+      data-grid-group-header={group.id}
+      data-col-start-index={colStartIndex}
+      data-col-end-index={colEndIndex}
+      tabIndex={focusable ? 0 : -1}
+      onFocus={(e) => {
+        if (e.target === e.currentTarget) {
+          onFocusGroupHeader?.(group.id, colStartIndex, colEndIndex);
+        }
+      }}
       style={{
         position: "absolute",
         left,
@@ -260,6 +284,8 @@ export const GroupHeaderCell = memo(function GroupHeaderCell({
         whiteSpace: "nowrap",
         textOverflow: "ellipsis",
         boxSizing: "border-box",
+        outline: active ? "2px solid var(--vg-accent)" : "none",
+        outlineOffset: -2,
         ...group.headerStyle,
         ...styles.groupRow,
       }}
