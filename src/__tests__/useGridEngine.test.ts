@@ -154,6 +154,31 @@ describe('useGridEngine — sorting', () => {
   });
 });
 
+describe('useGridEngine — row grouping', () => {
+  it('initialises grouping columns from the optional second argument', () => {
+    const { result } = renderHook(() => useGridEngine(columns, ['name']));
+    expect(result.current.rowGroupingState.groupBy).toEqual(['name']);
+  });
+
+  it('sets, toggles, expands, collapses, and clears row grouping state', () => {
+    const { result } = renderHook(() => useGridEngine(columns));
+    act(() => result.current.setGroupingColumns(['name', 'value']));
+    expect(result.current.rowGroupingState.groupBy).toEqual(['name', 'value']);
+
+    act(() => result.current.toggleGroup('group:name=Alpha'));
+    expect(result.current.rowGroupingState.expandedGroupIds.has('group:name=Alpha')).toBe(true);
+
+    act(() => result.current.expandAllGroups(['a', 'b']));
+    expect([...result.current.rowGroupingState.expandedGroupIds]).toEqual(['a', 'b']);
+
+    act(() => result.current.collapseAllGroups());
+    expect(result.current.rowGroupingState.expandedGroupIds.size).toBe(0);
+
+    act(() => result.current.clearGrouping());
+    expect(result.current.rowGroupingState.groupBy).toEqual([]);
+  });
+});
+
 describe('useGridEngine — reset', () => {
   it('resets all state back to initial defs', () => {
     const { result } = renderHook(() => useGridEngine(columns));

@@ -11,6 +11,12 @@ export { ColumnManager } from "./components/ColumnManager";
 
 // Headless engine
 export { useGridEngine } from "./core/useGridEngine";
+export {
+  buildGroupedRows,
+  deriveGroupByFromColumnDefs,
+  flattenVisibleGroupedRows,
+  collectGroupIds,
+} from "./core/rowGrouping";
 
 // Feature hooks
 export {
@@ -59,6 +65,10 @@ export type {
   SortDirection,
   SortState,
   ColumnState,
+  RowGroupingState,
+  GroupedRow,
+  GroupRow,
+  LeafRow,
 } from "./types";
 
 // Types — engine

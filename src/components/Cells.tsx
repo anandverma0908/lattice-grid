@@ -39,6 +39,7 @@ interface DataCellProps {
   focusable?: boolean;
   selected?: boolean;
   valueOverride?: unknown;
+  indent?: number;
   onFocusCell?: (rowIndex: number, colIndex: number) => void;
   onActivateCell?: (rowIndex: number, colIndex: number) => void;
   ariaHidden?: boolean;
@@ -59,6 +60,7 @@ function dataCellEqual(
     prev.focusable === next.focusable &&
     prev.selected === next.selected &&
     prev.valueOverride === next.valueOverride &&
+    prev.indent === next.indent &&
     prev.ariaHidden === next.ariaHidden &&
     prev.style.left === next.style.left &&
     prev.style.top === next.style.top &&
@@ -99,6 +101,7 @@ export const DataCell = memo(function DataCell({
   focusable = active,
   selected = false,
   valueOverride,
+  indent = 0,
   onFocusCell,
   onActivateCell,
   ariaHidden = false,
@@ -126,6 +129,7 @@ export const DataCell = memo(function DataCell({
           alignItems: "center",
           justifyContent: "center",
           padding: "0 10px",
+          paddingLeft: 10 + indent,
           boxSizing: "border-box",
           overflow: "hidden",
           outline: active ? "2px solid var(--vg-accent)" : "none",
@@ -194,6 +198,7 @@ export const DataCell = memo(function DataCell({
         alignItems: "center",
         justifyContent,
         padding: "0 10px",
+        paddingLeft: 10 + indent,
         fontSize: "var(--vg-font-size)",
         color: "var(--vg-text)",
         borderRight: "1px solid var(--vg-border)",

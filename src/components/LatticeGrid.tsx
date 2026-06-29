@@ -23,6 +23,11 @@ import React, {
 } from "react";
 import { useGridEngine } from "../core/useGridEngine";
 import {
+  buildGroupedRows,
+  deriveGroupByFromColumnDefs,
+  flattenVisibleGroupedRows,
+} from "../core/rowGrouping";
+import {
   computeVRows,
   calcColWindow,
   buildColumnOffsets,
@@ -44,6 +49,8 @@ import type {
   GridTexts,
   GridStyles,
   GridClassNames,
+  GroupRow,
+  LeafRow,
   VirtualRowWindow,
 } from "../types";
 
@@ -140,6 +147,8 @@ function LatticeGridInner<TData = unknown>({
   onRowsDelete,
   onRowInsert,
   sortMode = "client",
+  groupBy,
+  onGroupingChange,
   ariaLabel = "Data grid",
   className,
   style,
@@ -159,8 +168,15 @@ function LatticeGridInner<TData = unknown>({
   const styles = stylesProp ?? EMPTY_STYLES;
   const classNames = classNamesProp ?? EMPTY_CLASSNAMES;
 
+  const derivedGroupBy = useMemo(
+    () => deriveGroupByFromColumnDefs(columns),
+    [columns],
+  );
+  const effectiveGroupBy = groupBy ?? derivedGroupBy;
+  const derivedGroupByKey = JSON.stringify(derivedGroupBy);
+
   // ── Engine ───────────────────────────────────────────────────────────────────
-  const engine = useGridEngine<TData>(columns);
+  const engine = useGridEngine<TData>(columns, effectiveGroupBy);
   const {
     pinnedLeftColumns,
     pinnedRightColumns,
@@ -168,6 +184,7 @@ function LatticeGridInner<TData = unknown>({
     pinnedLeftWidth,
     pinnedRightWidth,
     sortState,
+    rowGroupingState,
     groups,
     hasGroups,
     visibleColumns,
@@ -175,7 +192,33 @@ function LatticeGridInner<TData = unknown>({
     resizeColumn,
     moveColumnBefore,
     moveColumnToEnd,
+    setGroupingColumns,
+    toggleGroup,
   } = engine;
+
+  const prevDerivedGroupByKeyRef = useRef(derivedGroupByKey);
+  useEffect(() => {
+    if (groupBy) return;
+    if (derivedGroupByKey === prevDerivedGroupByKeyRef.current) return;
+    prevDerivedGroupByKeyRef.current = derivedGroupByKey;
+    setGroupingColumns(derivedGroupBy);
+  }, [derivedGroupBy, derivedGroupByKey, groupBy, setGroupingColumns]);
+
+  useEffect(() => {
+    if (!groupBy) return;
+    if (JSON.stringify(groupBy) === JSON.stringify(rowGroupingState.groupBy)) {
+      return;
+    }
+    setGroupingColumns(groupBy);
+  }, [groupBy, rowGroupingState.groupBy, setGroupingColumns]);
+
+  const prevGroupByKeyRef = useRef(JSON.stringify(rowGroupingState.groupBy));
+  useEffect(() => {
+    const key = JSON.stringify(rowGroupingState.groupBy);
+    if (key === prevGroupByKeyRef.current) return;
+    prevGroupByKeyRef.current = key;
+    onGroupingChange?.(rowGroupingState.groupBy);
+  }, [onGroupingChange, rowGroupingState.groupBy]);
 
   // ── Sort notification ────────────────────────────────────────────────────────
   const prevSortRef = useRef(sortState);
@@ -217,6 +260,27 @@ function LatticeGridInner<TData = unknown>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, sortMode, sortState.columnId, sortState.direction]);
 
+  const groupedRows = useMemo(
+    () =>
+      buildGroupedRows(
+        sortedData,
+        rowGroupingState.groupBy,
+        orderedColumns,
+        rowGroupingState.expandedGroupIds,
+      ),
+    [
+      sortedData,
+      rowGroupingState.groupBy,
+      rowGroupingState.expandedGroupIds,
+      orderedColumns,
+    ],
+  );
+
+  const visibleRows = useMemo(
+    () => flattenVisibleGroupedRows(groupedRows),
+    [groupedRows],
+  );
+
   // ── Column state change notification ────────────────────────────────────────
   // FIX1: Fires whenever columns are hidden/shown/pinned/resized/reordered.
   // Consumer saves this to their API; restore by passing initialColumnState.
@@ -254,6 +318,14 @@ function LatticeGridInner<TData = unknown>({
     (row: TData, rowIndex: number) =>
       getRowId ? String(getRowId(row, rowIndex)) : String(rowIndex),
     [getRowId],
+  );
+
+  const getLeafAtVisibleIndex = useCallback(
+    (rowIndex: number): LeafRow<TData> | null => {
+      const item = visibleRows[rowIndex];
+      return item?.type === "leaf" ? item : null;
+    },
+    [visibleRows],
   );
 
   const handleRowClick = useCallback(
@@ -354,7 +426,7 @@ function LatticeGridInner<TData = unknown>({
     : 0;
   const contentH =
     totalHeaderHeight +
-    sortedData.length * rowHeight +
+    visibleRows.length * rowHeight +
     toolbarH +
     footerH +
     horizontalScrollbarGutter;
@@ -373,13 +445,13 @@ function LatticeGridInner<TData = unknown>({
   const recomputeVRows = useCallback(
     (st: number) => {
       vRowsRef.current = computeVRows(
-        sortedData.length,
+        visibleRows.length,
         rowHeight,
         st,
         Math.max(0, bodyWrapH - totalHeaderHeight),
       );
     },
-    [sortedData.length, rowHeight, bodyWrapH, totalHeaderHeight],
+    [visibleRows.length, rowHeight, bodyWrapH, totalHeaderHeight],
   );
 
   // ── Column window (synchronous ref) ──────────────────────────────────────────
@@ -589,9 +661,9 @@ function LatticeGridInner<TData = unknown>({
 
   const selectRowByIndex = useCallback(
     (rowIndex: number, additive: boolean) => {
-      const row = sortedData[rowIndex];
-      if (!row || !features.rowSelection) return;
-      const key = getRowKey(row, rowIndex);
+      const leaf = getLeafAtVisibleIndex(rowIndex);
+      if (!leaf || !features.rowSelection) return;
+      const key = getRowKey(leaf.row, leaf.rowIndex);
       setSelectedRowKeys((prev) => {
         const next = additive ? new Set(prev) : new Set<string>();
         if (next.has(key) && additive) {
@@ -605,7 +677,7 @@ function LatticeGridInner<TData = unknown>({
       });
       selectionAnchorRef.current = rowIndex;
     },
-    [features.rowSelection, getRowKey, sortedData],
+    [features.rowSelection, getLeafAtVisibleIndex, getRowKey],
   );
 
   const selectRangeByIndex = useCallback(
@@ -613,27 +685,32 @@ function LatticeGridInner<TData = unknown>({
       if (!features.rowSelection) return;
       const anchor = selectionAnchorRef.current ?? fromRowIndex;
       const lo = Math.max(0, Math.min(anchor, toRowIndex));
-      const hi = Math.min(sortedData.length - 1, Math.max(anchor, toRowIndex));
+      const hi = Math.min(visibleRows.length - 1, Math.max(anchor, toRowIndex));
       setSelectedRowKeys((prev) => {
         const next = new Set(prev);
         for (let ri = lo; ri <= hi; ri++) {
-          const row = sortedData[ri];
-          if (row) next.add(getRowKey(row, ri));
+          const leaf = getLeafAtVisibleIndex(ri);
+          if (leaf) next.add(getRowKey(leaf.row, leaf.rowIndex));
         }
         return next;
       });
       setAnnouncement(`Rows ${lo + 1} through ${hi + 1} selected`);
     },
-    [features.rowSelection, getRowKey, sortedData],
+    [features.rowSelection, getLeafAtVisibleIndex, getRowKey, visibleRows.length],
   );
 
   const selectAllRows = useCallback(() => {
     if (!features.rowSelection) return;
     setSelectedRowKeys(
-      new Set(sortedData.map((row, ri) => getRowKey(row, ri))),
+      new Set(
+        visibleRows.flatMap((item) =>
+          item.type === "leaf" ? [getRowKey(item.row, item.rowIndex)] : [],
+        ),
+      ),
     );
-    setAnnouncement(`All ${sortedData.length} rows selected`);
-  }, [features.rowSelection, getRowKey, sortedData]);
+    const leafCount = visibleRows.filter((item) => item.type === "leaf").length;
+    setAnnouncement(`All ${leafCount} rows selected`);
+  }, [features.rowSelection, getRowKey, visibleRows]);
 
   const activateRenderedCell = useCallback((cell: FocusedCell) => {
     const cellEl = scrollAreaRef.current?.querySelector<HTMLElement>(
@@ -661,10 +738,10 @@ function LatticeGridInner<TData = unknown>({
     if (selectedRowKeys.size === 0) return;
     const rows: TData[] = [];
     const rowIndexes: number[] = [];
-    sortedData.forEach((row, ri) => {
-      if (selectedRowKeys.has(getRowKey(row, ri))) {
-        rows.push(row);
-        rowIndexes.push(ri);
+    visibleRows.forEach((item) => {
+      if (item.type === "leaf" && selectedRowKeys.has(getRowKey(item.row, item.rowIndex))) {
+        rows.push(item.row);
+        rowIndexes.push(item.rowIndex);
       }
     });
     if (rows.length === 0) return;
@@ -675,7 +752,7 @@ function LatticeGridInner<TData = unknown>({
     onRowsDelete?.(rows, rowIndexes);
     setSelectedRowKeys(new Set());
     setAnnouncement(`${rows.length} selected row(s) deleted`);
-  }, [getRowKey, onRowsDelete, selectedRowKeys, sortedData]);
+  }, [getRowKey, onRowsDelete, selectedRowKeys, visibleRows]);
 
   const reorderColumnByKeyboard = useCallback(
     (colIndex: number, direction: -1 | 1): number => {
@@ -709,7 +786,7 @@ function LatticeGridInner<TData = unknown>({
   );
 
   const keyboard = useGridKeyboard({
-    rowCount: sortedData.length,
+    rowCount: visibleRows.length,
     colCount: visibleColumns.length,
     visibleRowCount,
     onFocusCell: scrollToCell,
@@ -1060,16 +1137,142 @@ function LatticeGridInner<TData = unknown>({
   //  SCROLLABLE DATA ROW
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const renderScrollableRow = (rowIndex: number): React.ReactNode => {
-    const row = sortedData[rowIndex];
-    if (!row) return null;
+  const renderGroupRow = (
+    group: GroupRow<TData>,
+    rowIndex: number,
+  ): React.ReactNode => {
     const top = totalHeaderHeight + rowIndex * rowHeight;
-    const bg = rowBg(row, rowIndex);
-    const pinnedBg = pinnedRowBg(row, rowIndex);
-    const isSel = isRowSelected(row, rowIndex);
+    const bg = "var(--vg-bg-row-alt)";
+    const labelColumn =
+      orderedColumns.find((column) => column.id === group.groupingColumnId)
+        ?.label ?? group.groupingColumnId;
+    const left = pinnedLeftWidth;
+    const groupWidth = Math.max(
+      0,
+      canvasW - pinnedLeftWidth - pinnedRightWidth,
+    );
+
+    return (
+      <div
+        key={group.id}
+        role="row"
+        aria-rowindex={rowIndex + 1}
+        aria-expanded={group.expanded}
+        className={[classNames.row, classNames.groupRow]
+          .filter(Boolean)
+          .join(" ") || undefined}
+        style={{
+          position: "absolute",
+          top,
+          left: 0,
+          width: canvasW,
+          height: rowHeight,
+          background: bg,
+          display: "flex",
+          borderBottom: "1px solid var(--vg-border)",
+          boxSizing: "border-box",
+          color: "var(--vg-text)",
+          fontWeight: 700,
+          ...styles.row,
+          ...styles.groupRow,
+        }}
+      >
+        <div
+          role="gridcell"
+          aria-colindex={1}
+          data-grid-cell={`${rowIndex}:0`}
+          tabIndex={
+            keyboard.focusedCell?.rowIndex === rowIndex &&
+            keyboard.focusedCell.colIndex === 0
+              ? 0
+              : -1
+          }
+          onFocus={(e) => {
+            if (e.target === e.currentTarget) {
+              keyboard.setFocusedCell({ rowIndex, colIndex: 0 });
+            }
+          }}
+          onClick={() => toggleGroup(group.id)}
+          onDoubleClick={() => toggleGroup(group.id)}
+          style={{
+            position: "absolute",
+            left,
+            top: 0,
+            width: groupWidth,
+            height: rowHeight,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            paddingLeft: 10 + group.depth * 18,
+            paddingRight: 10,
+            boxSizing: "border-box",
+            borderRight: "1px solid var(--vg-border)",
+            overflow: "hidden",
+            whiteSpace: "nowrap",
+            textOverflow: "ellipsis",
+            cursor: "pointer",
+            outline:
+              keyboard.focusedCell?.rowIndex === rowIndex &&
+              keyboard.focusedCell.colIndex === 0
+                ? "2px solid var(--vg-accent)"
+                : "none",
+            outlineOffset: -2,
+          }}
+        >
+          <button
+            type="button"
+            aria-label={`${group.expanded ? "Collapse" : "Expand"} ${String(
+              group.groupingValue,
+            )}`}
+            aria-expanded={group.expanded}
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleGroup(group.id);
+            }}
+            style={{
+              width: 22,
+              height: 22,
+              flex: "0 0 auto",
+              border: "1px solid var(--vg-border)",
+              borderRadius: 4,
+              background: "var(--vg-bg)",
+              color: "var(--vg-text)",
+              cursor: "pointer",
+              lineHeight: "18px",
+              padding: 0,
+            }}
+          >
+            {group.expanded ? "−" : "+"}
+          </button>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+            {labelColumn}: {String(group.groupingValue)}
+          </span>
+          <span
+            style={{
+              color: "var(--vg-text-muted)",
+              fontWeight: 600,
+              flex: "0 0 auto",
+            }}
+          >
+            ({group.leafRowCount})
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  const renderScrollableRow = (rowIndex: number): React.ReactNode => {
+    const item = visibleRows[rowIndex];
+    if (!item) return null;
+    if (item.type === "group") return renderGroupRow(item, rowIndex);
+    const row = item.row;
+    const top = totalHeaderHeight + rowIndex * rowHeight;
+    const bg = rowBg(row, item.rowIndex);
+    const pinnedBg = pinnedRowBg(row, item.rowIndex);
+    const isSel = isRowSelected(row, item.rowIndex);
     const rowKey = getRowId
-      ? String(getRowId(row, rowIndex))
-      : String(rowIndex);
+      ? String(getRowId(row, item.rowIndex))
+      : String(item.rowIndex);
 
     // ── Scrollable cells (absolutely positioned inside the row) ──────────────
     const cells: React.ReactNode[] = [];
@@ -1090,10 +1293,11 @@ function LatticeGridInner<TData = unknown>({
           row={row}
           rowIndex={rowIndex}
           colIndex={colIndex}
-          valueOverride={getRawCellValue(row, rowIndex, col)}
+          valueOverride={getRawCellValue(row, item.rowIndex, col)}
           active={isActive}
           focusable={isFocusable}
           selected={isSel}
+          indent={colIndex === 0 ? item.depth * 18 : 0}
           onFocusCell={(ri, ci) => keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })}
           onActivateCell={(ri, ci) =>
             activateRenderedCell({ rowIndex: ri, colIndex: ci })
@@ -1138,10 +1342,11 @@ function LatticeGridInner<TData = unknown>({
                 row={row}
                 rowIndex={rowIndex}
                 colIndex={colIndex}
-                valueOverride={getRawCellValue(row, rowIndex, col)}
+                valueOverride={getRawCellValue(row, item.rowIndex, col)}
                 active={isActive}
                 focusable={isFocusable}
                 selected={isSel}
+                indent={colIndex === 0 ? item.depth * 18 : 0}
                 onFocusCell={(ri, ci) =>
                   keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })
                 }
@@ -1185,10 +1390,11 @@ function LatticeGridInner<TData = unknown>({
                 row={row}
                 rowIndex={rowIndex}
                 colIndex={colIndex}
-                valueOverride={getRawCellValue(row, rowIndex, col)}
+                valueOverride={getRawCellValue(row, item.rowIndex, col)}
                 active={isActive}
                 focusable={isFocusable}
                 selected={isSel}
+                indent={colIndex === 0 ? item.depth * 18 : 0}
                 onFocusCell={(ri, ci) =>
                   keyboard.setFocusedCell({ rowIndex: ri, colIndex: ci })
                 }
@@ -1217,7 +1423,7 @@ function LatticeGridInner<TData = unknown>({
         role="row"
         aria-rowindex={rowIndex + 1}
         aria-selected={isSel}
-        onClick={() => handleRowClick(row, rowIndex)}
+        onClick={() => handleRowClick(row, item.rowIndex)}
         className={
           [classNames.row, isSel ? classNames.rowSelected : undefined]
             .filter(Boolean)
@@ -1293,7 +1499,7 @@ function LatticeGridInner<TData = unknown>({
           </div>
         )}
         {cells}
-        {isSel && slots.rowSelectionIndicator?.(row, rowIndex)}
+        {isSel && slots.rowSelectionIndicator?.(row, item.rowIndex)}
       </div>
     );
   };
@@ -1308,10 +1514,13 @@ function LatticeGridInner<TData = unknown>({
     if (!frozenColDef) return null;
     const rows: React.ReactNode[] = [];
     for (let ri = vRows.startIndex; ri <= vRows.endIndex; ri++) {
-      const row = sortedData[ri];
-      if (!row) continue;
-      const rowKey = getRowId ? String(getRowId(row, ri)) : String(ri);
-      const isSel = isRowSelected(row, ri);
+      const item = visibleRows[ri];
+      if (!item || item.type === "group") continue;
+      const row = item.row;
+      const rowKey = getRowId
+        ? String(getRowId(row, item.rowIndex))
+        : String(item.rowIndex);
+      const isSel = isRowSelected(row, item.rowIndex);
       const frozenBg = isSel
         ? ((styles.rowSelected?.background as string | undefined) ??
           (styles.rowSelected?.backgroundColor as string | undefined) ??
@@ -1320,7 +1529,7 @@ function LatticeGridInner<TData = unknown>({
       rows.push(
         <div
           key={rowKey}
-          onClick={() => handleRowClick(row, ri)}
+          onClick={() => handleRowClick(row, item.rowIndex)}
           className={
             [classNames.row, isSel ? classNames.rowSelected : undefined]
               .filter(Boolean)
@@ -1352,7 +1561,13 @@ function LatticeGridInner<TData = unknown>({
             row={row}
             rowIndex={ri}
             colIndex={visibleColIndexById.get(frozenColDef.id) ?? 0}
+            valueOverride={getRawCellValue(row, item.rowIndex, frozenColDef)}
             selected={isSel}
+            indent={
+              (visibleColIndexById.get(frozenColDef.id) ?? 0) === 0
+                ? item.depth * 18
+                : 0
+            }
             ariaHidden
             pinned
             isScrolling={isScrolling}
@@ -1376,7 +1591,7 @@ function LatticeGridInner<TData = unknown>({
                 pointerEvents: "none",
               }}
             >
-              {slots.rowSelectionIndicator?.(row, ri)}
+              {slots.rowSelectionIndicator?.(row, item.rowIndex)}
             </div>
           )}
         </div>,
@@ -1618,7 +1833,7 @@ function LatticeGridInner<TData = unknown>({
     <span
       style={{ fontSize: 12, color: "var(--vg-text-dim)", fontWeight: 500 }}
     >
-      {sortedData.length.toLocaleString()} {texts.rows}
+      {visibleRows.length.toLocaleString()} {texts.rows}
       {selectedRowKeys.size > 0 && (
         <span
           style={{ marginLeft: 8, color: "var(--vg-accent)", fontWeight: 600 }}
@@ -1646,13 +1861,13 @@ function LatticeGridInner<TData = unknown>({
 
   const footerProps = {
     startRow: vRows.startIndex + 1,
-    endRow: Math.min(vRows.endIndex + 1, sortedData.length),
-    totalRows: sortedData.length,
+    endRow: Math.min(vRows.endIndex + 1, visibleRows.length),
+    totalRows: visibleRows.length,
     visibleCols: visibleColumns.length,
     totalCols: orderedColumns.length,
   };
 
-  const spacerHeight = totalHeaderHeight + sortedData.length * rowHeight;
+  const spacerHeight = totalHeaderHeight + visibleRows.length * rowHeight;
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  JSX
@@ -1663,7 +1878,7 @@ function LatticeGridInner<TData = unknown>({
       <div
         role="grid"
         aria-label={ariaLabel}
-        aria-rowcount={sortedData.length}
+        aria-rowcount={visibleRows.length}
         aria-colcount={visibleColumns.length}
         onKeyDown={keyboard.handleKeyDown}
         className={
@@ -1732,7 +1947,7 @@ function LatticeGridInner<TData = unknown>({
           ref={bodyWrapRef}
           style={{ position: "relative", flex: 1, overflow: "hidden" }}
         >
-          {sortedData.length === 0 ? (
+          {visibleRows.length === 0 ? (
             <EmptyState height={bodyWrapH} slot={slots.emptyState} />
           ) : (
             <>
@@ -1830,7 +2045,7 @@ function LatticeGridInner<TData = unknown>({
                         left: pinnedLeftWidth,
                         marginLeft: pinnedLeftWidth + frozenColOffset,
                         width: frozenWidth,
-                        height: sortedData.length * rowHeight,
+                        height: visibleRows.length * rowHeight,
                         zIndex: 6,
                         // Initial state — handleScroll + useLayoutEffect keep
                         // this in sync after every scroll / React commit.
@@ -1972,8 +2187,32 @@ function LatticeGridInner<TData = unknown>({
                     { length: vRows.endIndex - vRows.startIndex + 1 },
                     (_, i) => {
                       const ri = vRows.startIndex + i;
-                      const row = sortedData[ri];
-                      if (!row) return null;
+                      const item = visibleRows[ri];
+                      if (!item) return null;
+                      if (item.type === "group") {
+                        return (
+                          <div
+                            key={item.id}
+                            style={{
+                              height: rowHeight,
+                              display: "flex",
+                              alignItems: "center",
+                              padding: `0 10px 0 ${10 + item.depth * 18}px`,
+                              fontSize: "var(--vg-font-size)",
+                              fontWeight: 700,
+                              color: "var(--vg-text)",
+                              borderBottom: "1px solid var(--vg-border)",
+                              boxSizing: "border-box",
+                              overflow: "hidden",
+                              whiteSpace: "nowrap",
+                              background: "var(--vg-bg-row-alt)",
+                            }}
+                          >
+                            {String(item.groupingValue)} ({item.leafRowCount})
+                          </div>
+                        );
+                      }
+                      const row = item.row;
                       const raw = draggingCol.accessor
                         ? draggingCol.accessor(row)
                         : (row as Record<string, unknown>)[
@@ -1997,7 +2236,7 @@ function LatticeGridInner<TData = unknown>({
                             boxSizing: "border-box",
                             overflow: "hidden",
                             whiteSpace: "nowrap",
-                            background: rowBg(row, ri),
+                            background: rowBg(row, item.rowIndex),
                           }}
                         >
                           {content}

@@ -37,6 +37,21 @@ export interface LeafColumnDef<TData = unknown> {
   resizable?: boolean;
   draggable?: boolean;
   hideable?: boolean;
+  /**
+   * AG Grid-style row grouping shortcut. When true, this column participates
+   * in row grouping unless the grid receives an explicit groupBy prop.
+   */
+  rowGroup?: boolean;
+  /**
+   * Determines row grouping order. Supplying an index also enables rowGroup.
+   * Columns without an index are placed after indexed groups in definition order.
+   */
+  rowGroupIndex?: number;
+  /**
+   * Optional value getter used only for grouping. Use this when the displayed
+   * cell value and the grouping key should differ.
+   */
+  rowGroupValueGetter?: (row: TData) => unknown;
   stock?: string;
   // FIX 3: renderHeader now receives (col, engine) as second arg so custom
   // headers can access sort state, fire actions, render filter inputs, etc.
@@ -94,6 +109,9 @@ export interface ResolvedColumn<TData = any> {
   resizable: boolean;
   draggable: boolean;
   hideable: boolean;
+  rowGroup: boolean;
+  rowGroupIndex: number | null;
+  rowGroupValueGetter?: LeafColumnDef<TData>["rowGroupValueGetter"];
   width: number;
   minWidth: number;
   maxWidth: number;
@@ -113,6 +131,37 @@ export interface SortState {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  ROW GROUPING
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface RowGroupingState {
+  groupBy: string[];
+  expandedGroupIds: Set<string>;
+}
+
+export interface LeafRow<TData = unknown> {
+  type: "leaf";
+  id: string;
+  row: TData;
+  rowIndex: number;
+  depth: number;
+}
+
+export interface GroupRow<TData = unknown> {
+  type: "group";
+  id: string;
+  path: string[];
+  groupingColumnId: string;
+  groupingValue: unknown;
+  depth: number;
+  children: GroupedRow<TData>[];
+  leafRowCount: number;
+  expanded: boolean;
+}
+
+export type GroupedRow<TData = unknown> = LeafRow<TData> | GroupRow<TData>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -126,6 +175,7 @@ export interface GridEngineState<TData = unknown> {
   pinnedRightWidth: number;
   scrollableWidth: number;
   sortState: SortState;
+  rowGroupingState: RowGroupingState;
   groups: GroupColumnDef<TData>[];
   hasGroups: boolean;
 }
@@ -139,6 +189,11 @@ export interface GridEngineActions {
   moveColumnBefore: (sourceId: string, targetId: string) => void;
   moveColumnToEnd: (sourceId: string) => void;
   toggleSort: (columnId: string) => void;
+  setGroupingColumns: (columnIds: string[]) => void;
+  toggleGroup: (groupId: string) => void;
+  expandAllGroups: (groupIds: string[]) => void;
+  collapseAllGroups: () => void;
+  clearGrouping: () => void;
   resetColumns: () => void;
 }
 
@@ -344,6 +399,18 @@ export interface LatticeGridProps<TData = unknown> {
    *                      onSortChange fires so you can fetch the sorted page.
    */
   sortMode?: "client" | "server";
+
+  /**
+   * Ordered row grouping columns. The first id is the outermost grouping level.
+   * When omitted, the grid derives grouping from column rowGroup / rowGroupIndex
+   * settings. Pass [] to explicitly disable column-config grouping.
+   */
+  groupBy?: string[];
+
+  /**
+   * Fired whenever row grouping columns change.
+   */
+  onGroupingChange?: (groupBy: string[]) => void;
 
   /**
    * Fired whenever column visibility / pin / width / order changes.

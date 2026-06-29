@@ -27,6 +27,7 @@ import type {
   LeafColumnDef,
   PinSide,
   ResolvedColumn,
+  RowGroupingState,
   SortDirection,
   SortState,
 } from '../types';
@@ -59,6 +60,8 @@ interface EngineInternalState {
   colOrder: string[];
   /** Sort state */
   sort: SortState;
+  /** Row grouping state */
+  rowGrouping: RowGroupingState;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +77,11 @@ type Action =
   | { type: 'MOVE_BEFORE'; sourceId: string; targetId: string }
   | { type: 'MOVE_LAST'; sourceId: string }
   | { type: 'TOGGLE_SORT'; id: string }
+  | { type: 'SET_GROUPING'; columnIds: string[] }
+  | { type: 'TOGGLE_GROUP'; groupId: string }
+  | { type: 'EXPAND_ALL_GROUPS'; groupIds: string[] }
+  | { type: 'COLLAPSE_ALL_GROUPS' }
+  | { type: 'CLEAR_GROUPING' }
   | { type: 'RESET'; initial: EngineInternalState };
 
 function clamp(value: number, min: number, max: number): number {
@@ -165,6 +173,52 @@ function reducer(state: EngineInternalState, action: Action): EngineInternalStat
       return { ...state, sort: { columnId: action.id, direction } };
     }
 
+    case 'SET_GROUPING':
+      return {
+        ...state,
+        rowGrouping: {
+          groupBy: [...action.columnIds],
+          expandedGroupIds: new Set(),
+        },
+      };
+
+    case 'TOGGLE_GROUP': {
+      const expandedGroupIds = new Set(state.rowGrouping.expandedGroupIds);
+      if (expandedGroupIds.has(action.groupId)) {
+        expandedGroupIds.delete(action.groupId);
+      } else {
+        expandedGroupIds.add(action.groupId);
+      }
+      return {
+        ...state,
+        rowGrouping: { ...state.rowGrouping, expandedGroupIds },
+      };
+    }
+
+    case 'EXPAND_ALL_GROUPS':
+      return {
+        ...state,
+        rowGrouping: {
+          ...state.rowGrouping,
+          expandedGroupIds: new Set(action.groupIds),
+        },
+      };
+
+    case 'COLLAPSE_ALL_GROUPS':
+      return {
+        ...state,
+        rowGrouping: {
+          ...state.rowGrouping,
+          expandedGroupIds: new Set(),
+        },
+      };
+
+    case 'CLEAR_GROUPING':
+      return {
+        ...state,
+        rowGrouping: { groupBy: [], expandedGroupIds: new Set() },
+      };
+
     case 'RESET':
       return action.initial;
 
@@ -206,6 +260,7 @@ function flattenColumnDefs<TData>(defs: ColumnDef<TData>[]): FlattenResult<TData
 
 function buildInitialState<TData>(
   defs: ColumnDef<TData>[],
+  initialGroupBy: string[] = [],
 ): { internal: EngineInternalState; leaves: FlattenResult<TData>['leaves']; groups: GroupColumnDef<TData>[] } {
   const { leaves, groups } = flattenColumnDefs(defs);
 
@@ -224,7 +279,12 @@ function buildInitialState<TData>(
   }
 
   return {
-    internal: { colMap, colOrder, sort: { columnId: null, direction: 'asc' } },
+    internal: {
+      colMap,
+      colOrder,
+      sort: { columnId: null, direction: 'asc' },
+      rowGrouping: { groupBy: [...initialGroupBy], expandedGroupIds: new Set() },
+    },
     leaves,
     groups,
   };
@@ -246,11 +306,12 @@ function buildInitialState<TData>(
  */
 export function useGridEngine<TData>(
   columnDefs: ColumnDef<TData>[],
+  initialGroupBy: string[] = [],
 ): GridEngine<TData> {
   // Compute reducer initial state only once at mount.
   // colMap / colOrder are mutable runtime state managed by the reducer.
   const { initial } = useMemo(() => {
-    const result = buildInitialState(columnDefs);
+    const result = buildInitialState(columnDefs, initialGroupBy);
     return { initial: result.internal };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally only on mount — preserves user's resize/reorder/hide state
@@ -288,6 +349,12 @@ export function useGridEngine<TData>(
         resizable: leaf.resizable ?? true,
         draggable: leaf.draggable ?? true,
         hideable: leaf.hideable ?? true,
+        rowGroup: leaf.rowGroup ?? typeof leaf.rowGroupIndex === 'number',
+        rowGroupIndex:
+          typeof leaf.rowGroupIndex === 'number' && Number.isFinite(leaf.rowGroupIndex)
+            ? leaf.rowGroupIndex
+            : null,
+        rowGroupValueGetter: leaf.rowGroupValueGetter,
         groupId: leaf.groupId,
         defIndex: leaf.defIndex,
         width: record.width,
@@ -376,6 +443,31 @@ export function useGridEngine<TData>(
     [],
   );
 
+  const setGroupingColumns: GridEngineActions['setGroupingColumns'] = useCallback(
+    (columnIds) => dispatch({ type: 'SET_GROUPING', columnIds }),
+    [],
+  );
+
+  const toggleGroup: GridEngineActions['toggleGroup'] = useCallback(
+    (groupId) => dispatch({ type: 'TOGGLE_GROUP', groupId }),
+    [],
+  );
+
+  const expandAllGroups: GridEngineActions['expandAllGroups'] = useCallback(
+    (groupIds) => dispatch({ type: 'EXPAND_ALL_GROUPS', groupIds }),
+    [],
+  );
+
+  const collapseAllGroups: GridEngineActions['collapseAllGroups'] = useCallback(
+    () => dispatch({ type: 'COLLAPSE_ALL_GROUPS' }),
+    [],
+  );
+
+  const clearGrouping: GridEngineActions['clearGrouping'] = useCallback(
+    () => dispatch({ type: 'CLEAR_GROUPING' }),
+    [],
+  );
+
   const resetColumns: GridEngineActions['resetColumns'] = useCallback(
     () => dispatch({ type: 'RESET', initial }),
     [initial],
@@ -392,6 +484,7 @@ export function useGridEngine<TData>(
     pinnedRightWidth,
     scrollableWidth,
     sortState: state.sort,
+    rowGroupingState: state.rowGrouping,
     groups,
     hasGroups: groups.length > 0,
   };
@@ -405,6 +498,11 @@ export function useGridEngine<TData>(
     moveColumnBefore,
     moveColumnToEnd,
     toggleSort,
+    setGroupingColumns,
+    toggleGroup,
+    expandAllGroups,
+    collapseAllGroups,
+    clearGrouping,
     resetColumns,
   };
 

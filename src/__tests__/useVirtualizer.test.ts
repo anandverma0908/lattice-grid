@@ -13,7 +13,8 @@ function makeCol(id: string, width: number): ResolvedColumn {
   return {
     id, label: id, width, minWidth: 40, maxWidth: Infinity,
     pinned: null, hidden: false, groupId: null, defIndex: 0,
-    sortable: true, resizable: true, draggable: true, align: 'left',
+    sortable: true, resizable: true, draggable: true, hideable: true,
+    rowGroup: false, rowGroupIndex: null, align: 'left',
   };
 }
 
