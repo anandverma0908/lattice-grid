@@ -1,64 +1,26 @@
-// =============================================================================
-//  @lattice-grid-lib/core — useRowSelection
-//
-//  Manages multi-row selection state.
-//  Supports:
-//    • Single click  → select one row
-//    • Shift+click   → range select
-//    • Ctrl/Cmd+click → toggle individual rows
-//    • selectAll / clearSelection / toggleRow
-//
-//  Intentionally decoupled from LatticeGrid so consumers can wire it in
-//  any way they like (checkbox column, row click, keyboard, etc.).
-//
-//  Usage:
-//    const selection = useRowSelection({ data, getRowId });
-//    <LatticeGrid onRowClick={(row, i, e) => selection.handleRowClick(row, i, e)} />
-// =============================================================================
-
 import { useCallback, useMemo, useReducer } from 'react';
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  TYPES
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type RowId = string | number;
 
 export interface UseRowSelectionOptions<TData> {
   data: TData[];
   getRowId: (row: TData, index: number) => RowId;
-  /** 'single' = only one row can be selected at a time. Default: 'multi' */
   mode?: 'single' | 'multi';
-  /** Initially selected row ids */
   defaultSelected?: RowId[];
-  /** Controlled — called when selection changes */
   onSelectionChange?: (selectedIds: RowId[], selectedRows: TData[]) => void;
 }
 
 export interface UseRowSelectionReturn<TData> {
-  /** Set of currently selected row ids */
   selectedIds: Set<RowId>;
-  /** Whether all rows are selected */
   allSelected: boolean;
-  /** Whether some (but not all) rows are selected */
   someSelected: boolean;
-  /** Toggle a single row */
   toggleRow: (id: RowId) => void;
-  /** Select all rows */
   selectAll: () => void;
-  /** Clear all selections */
   clearSelection: () => void;
-  /** Handle a row click with keyboard modifiers (shift, ctrl/cmd) */
   handleRowClick: (row: TData, index: number, event: React.MouseEvent) => void;
-  /** The currently selected row objects */
   selectedRows: TData[];
-  /** Whether a specific row id is selected */
   isSelected: (id: RowId) => boolean;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  REDUCER
-// ─────────────────────────────────────────────────────────────────────────────
 
 type SelectionAction =
   | { type: 'TOGGLE'; id: RowId; mode: 'single' | 'multi' }
@@ -96,45 +58,6 @@ function selectionReducer(state: Set<RowId>, action: SelectionAction): Set<RowId
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  HOOK
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * useRowSelection
- *
- * @example
- * const sel = useRowSelection({ data, getRowId: (r) => r.id });
- *
- * // Add a checkbox column:
- * const columns = [
- *   {
- *     id: '__select__',
- *     label: '',
- *     width: 40,
- *     sortable: false,
- *     resizable: false,
- *     draggable: false,
- *     renderHeader: () => (
- *       <input
- *         type="checkbox"
- *         checked={sel.allSelected}
- *         ref={(el) => el && (el.indeterminate = sel.someSelected)}
- *         onChange={() => sel.allSelected ? sel.clearSelection() : sel.selectAll()}
- *       />
- *     ),
- *     renderCell: (_, row) => (
- *       <input
- *         type="checkbox"
- *         checked={sel.isSelected(row.id)}
- *         onChange={() => sel.toggleRow(row.id)}
- *         onClick={(e) => e.stopPropagation()}
- *       />
- *     ),
- *   },
- *   ...otherColumns,
- * ];
- */
 export function useRowSelection<TData>({
   data,
   getRowId,
@@ -147,10 +70,8 @@ export function useRowSelection<TData>({
     new Set<RowId>(defaultSelected),
   );
 
-  // Track last-clicked index for shift-range selection
   const lastClickedIndexRef = { current: -1 };
 
-  // Stable row-id list for range selection
   const allIds = useMemo(() => data.map((row, i) => getRowId(row, i)), [data, getRowId]);
 
   const notify = useCallback(

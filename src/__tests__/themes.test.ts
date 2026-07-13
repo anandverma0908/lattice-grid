@@ -1,7 +1,3 @@
-// =============================================================================
-//  @lattice-grid-lib/core — Theme system unit tests
-// =============================================================================
-
 import { describe, it, expect } from 'vitest';
 import { resolveTokens, GRID_THEMES } from '../core/themes';
 
@@ -31,7 +27,6 @@ describe('resolveTokens', () => {
     const custom = { '--vg-accent': '#e11d48' } as const;
     const result = resolveTokens(custom);
     expect(result['--vg-accent']).toBe('#e11d48');
-    // all other light tokens should be present
     expect(result['--vg-bg']).toBe(GRID_THEMES.light['--vg-bg']);
   });
 

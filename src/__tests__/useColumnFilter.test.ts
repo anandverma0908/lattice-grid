@@ -1,7 +1,3 @@
-// =============================================================================
-//  useColumnFilter unit tests
-// =============================================================================
-
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useColumnFilter } from '../hooks/useColumnFilter';
@@ -76,7 +72,6 @@ describe('useColumnFilter', () => {
       useColumnFilter({ data, columns, matchers }),
     );
     act(() => result.current.setFilter('value', '25'));
-    // value >= 25: id 2 (25) and id 4 (42)
     expect(result.current.filteredData.map((r) => r.id)).toEqual([2, 4]);
   });
 

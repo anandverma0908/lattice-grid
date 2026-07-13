@@ -1,13 +1,3 @@
-// =============================================================================
-//  @lattice-grid-lib/core — useColumnResize
-//
-//  Attaches mouse-drag listeners for column resize.
-//  Returns an onMouseDown handler to attach to the resize handle element.
-//
-//  Design: The drag is tracked on window (not the handle) so the resize
-//  continues even if the cursor leaves the handle element.
-// =============================================================================
-
 import { useCallback, useRef } from 'react';
 
 export interface UseColumnResizeOptions {

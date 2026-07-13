@@ -1,7 +1,3 @@
-// =============================================================================
-//  @lattice-grid-lib/core — useGridEngine unit tests
-// =============================================================================
-
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useGridEngine } from '../core/useGridEngine';
@@ -95,7 +91,6 @@ describe('useGridEngine — pinning', () => {
     const { result } = renderHook(() => useGridEngine(columns));
     act(() => result.current.pinColumn('id', 'left'));
     act(() => result.current.pinColumn('name', 'left'));
-    // 60 + 150
     expect(result.current.pinnedLeftWidth).toBe(210);
   });
 });

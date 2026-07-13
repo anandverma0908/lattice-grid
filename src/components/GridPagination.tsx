@@ -1,17 +1,3 @@
-// =============================================================================
-//  @lattice-grid-lib/core — GridPagination
-//
-//  A ready-made pagination bar for use alongside LatticeGrid.
-//  Fully themeable via the same CSS tokens.
-//
-//  Usage:
-//    const page = useGridPagination({ data: rows, pageSize: 100 });
-//    <>
-//      <LatticeGrid data={page.pageData} ... />
-//      <GridPagination {...page} />
-//    </>
-// =============================================================================
-
 import React, { memo } from 'react';
 import type { UseGridPaginationReturn } from '../hooks/useGridPagination';
 
@@ -34,12 +20,6 @@ type GridPaginationProps = Pick<
   | 'setPageSize'
 >;
 
-/**
- * GridPagination
- *
- * A standalone pagination bar component. Style it via CSS variables
- * or use the `style` prop for one-off overrides.
- */
 export const GridPagination = memo(function GridPagination({
   currentPage,
   pageCount,
@@ -57,7 +37,6 @@ export const GridPagination = memo(function GridPagination({
   lastPage,
   setPageSize,
 }: GridPaginationProps) {
-  // Build visible page numbers (max 7 slots with ellipsis)
   const pageNumbers = buildPageNumbers(currentPage, pageCount);
 
   return (
@@ -75,7 +54,6 @@ export const GridPagination = memo(function GridPagination({
         flexWrap:       'wrap',
       }}
     >
-      {/* Left — row range + total */}
       <span
         style={{
           fontSize: 12,
@@ -88,7 +66,6 @@ export const GridPagination = memo(function GridPagination({
         {totalRows.toLocaleString()} rows
       </span>
 
-      {/* Centre — page buttons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
         <NavButton onClick={firstPage} disabled={!canGoPrev} title="First page">
           <ChevronDouble left />

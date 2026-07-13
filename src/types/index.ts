@@ -1,15 +1,7 @@
-// =============================================================================
-//  @lattice-grid-lib/core — Public Type Definitions  (v2.1)
-// =============================================================================
-
 import type { CSSProperties, ReactNode } from "react";
 
 export type PinSide = "left" | "right";
 export type SortDirection = "asc" | "desc";
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  COLUMN STATE  (serialisable — use with onColumnStateChange / initialColumnState)
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ColumnState {
   id: string;
@@ -18,10 +10,6 @@ export interface ColumnState {
   width: number;
   order: number;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  COLUMN DEFINITIONS
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface LeafColumnDef<TData = unknown> {
   id: string;
@@ -37,34 +25,15 @@ export interface LeafColumnDef<TData = unknown> {
   resizable?: boolean;
   draggable?: boolean;
   hideable?: boolean;
-  /**
-   * AG Grid-style row grouping shortcut. When true, this column participates
-   * in row grouping unless the grid receives an explicit groupBy prop.
-   */
   rowGroup?: boolean;
-  /**
-   * Determines row grouping order. Supplying an index also enables rowGroup.
-   * Columns without an index are placed after indexed groups in definition order.
-   */
   rowGroupIndex?: number;
-  /**
-   * Optional value getter used only for grouping. Use this when the displayed
-   * cell value and the grouping key should differ.
-   */
   rowGroupValueGetter?: (row: TData) => unknown;
   stock?: string;
-  // FIX 3: renderHeader now receives (col, engine) as second arg so custom
-  // headers can access sort state, fire actions, render filter inputs, etc.
   renderHeader?: (
     col: ResolvedColumn<TData>,
     engine?: GridEngine<TData>,
   ) => ReactNode;
   renderCell?: (value: unknown, row: TData) => ReactNode;
-  /**
-   * When true, cells with a custom renderCell will show a lightweight
-   * placeholder while the grid is scrolling, then render the real content
-   * once scrolling stops. Use this for expensive custom cell components.
-   */
   deferRender?: boolean;
   align?: "left" | "center" | "right";
   cellStyle?: CSSProperties;
@@ -89,10 +58,6 @@ export function isGroupColumn<TData>(
     "children" in col && Array.isArray((col as GroupColumnDef<TData>).children)
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  RESOLVED COLUMN
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ResolvedColumn<TData = any> {
   id: string;
@@ -121,18 +86,10 @@ export interface ResolvedColumn<TData = any> {
   defIndex: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  SORT STATE
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface SortState {
   columnId: string | null;
   direction: SortDirection;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  ROW GROUPING
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface RowGroupingState {
   groupBy: string[];
@@ -160,10 +117,6 @@ export interface GroupRow<TData = unknown> {
 }
 
 export type GroupedRow<TData = unknown> = LeafRow<TData> | GroupRow<TData>;
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  ENGINE
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface GridEngineState<TData = unknown> {
   orderedColumns: ResolvedColumn<TData>[];
@@ -200,10 +153,6 @@ export interface GridEngineActions {
 export type GridEngine<TData = unknown> = GridEngineState<TData> &
   GridEngineActions;
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  VIRTUALISER
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface VirtualRowWindow {
   startIndex: number;
   endIndex: number;
@@ -217,10 +166,6 @@ export interface VirtualColWindow {
   totalWidth: number;
   offsets: number[];
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  THEMING
-// ─────────────────────────────────────────────────────────────────────────────
 
 export type GridTokens = Partial<Record<`--vg-${string}`, string>>;
 export type ThemePreset = "light" | "dark" | "ocean" | "forest" | "sunset";

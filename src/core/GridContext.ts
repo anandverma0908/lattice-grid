@@ -1,7 +1,3 @@
-// =============================================================================
-//  @lattice-grid-lib/core — GridContext
-// =============================================================================
-
 import { createContext, useContext } from 'react';
 import type { GridEngine, GridFeatures, GridIcons, GridTexts, GridStyles, GridClassNames } from '../types';
 import type { ColumnDragHandlers } from '../hooks/useColumnDrag';

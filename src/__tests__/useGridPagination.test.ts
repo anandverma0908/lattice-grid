@@ -1,7 +1,3 @@
-// =============================================================================
-//  useGridPagination unit tests
-// =============================================================================
-
 import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useGridPagination } from '../hooks/useGridPagination';
@@ -68,7 +64,6 @@ describe('useGridPagination — client-side', () => {
   });
 
   it('handles last page with partial data correctly', () => {
-    // 250 rows / 100 per page = 3 pages, last has 50
     const { result } = renderHook(() => useGridPagination({ data, pageSize: 100 }));
     act(() => result.current.lastPage());
     expect(result.current.pageData).toHaveLength(50);

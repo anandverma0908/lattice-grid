@@ -1,13 +1,5 @@
-// =============================================================================
-//  @lattice-grid-lib/core — Toolbar, Footer, default icons
-// =============================================================================
-
 import React, { memo, type ReactNode } from 'react';
 import { useGridContext } from '../core/GridContext';
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  TOOLBAR
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface ToolbarProps {
   left?:          ReactNode;
@@ -42,10 +34,6 @@ export const Toolbar = memo(function Toolbar({ left, right, colManagerSlot }: To
     </div>
   );
 });
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  TOOLBAR BUTTON
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface ToolbarButtonProps {
   onClick:       () => void;

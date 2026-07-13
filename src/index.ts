@@ -1,15 +1,8 @@
-// =============================================================================
-//  @lattice-grid-lib/core — Public API  (v2.0)
-// =============================================================================
-
-// Main component
 export { LatticeGrid } from "./components/LatticeGrid";
 
-// Additional UI components (usable standalone)
 export { GridPagination } from "./components/GridPagination";
 export { ColumnManager } from "./components/ColumnManager";
 
-// Headless engine
 export { useGridEngine } from "./core/useGridEngine";
 export {
   buildGroupedRows,
@@ -18,7 +11,6 @@ export {
   collectGroupIds,
 } from "./core/rowGrouping";
 
-// Feature hooks
 export {
   useVirtualRows,
   useVirtualCols,
@@ -35,16 +27,12 @@ export { useGridPagination } from "./hooks/useGridPagination";
 export { useGridExport } from "./hooks/useGridExport";
 export { useColumnManager } from "./hooks/useColumnManager";
 
-// Context (for custom slot components that need engine access)
 export { useGridContext } from "./core/GridContext";
 
-// Theming
 export { GRID_THEMES, resolveTokens, tokensToStyle } from "./core/themes";
 
-// Types — component props
 export type { LatticeGridProps } from "./types";
 
-// Types — customisation
 export type {
   GridFeatures,
   GridIcons,
@@ -55,7 +43,6 @@ export type {
   ColumnManagerRenderProps,
 } from "./types";
 
-// Types — column definitions
 export type {
   ColumnDef,
   LeafColumnDef,
@@ -71,16 +58,12 @@ export type {
   LeafRow,
 } from "./types";
 
-// Types — engine
 export type { GridEngine, GridEngineState, GridEngineActions } from "./types";
 
-// Types — virtualisation
 export type { VirtualRowWindow, VirtualColWindow } from "./types";
 
-// Types — theming
 export type { GridTokens, ThemePreset } from "./types";
 
-// Types — hooks
 export type {
   UseRowSelectionOptions,
   UseRowSelectionReturn,
@@ -110,5 +93,4 @@ export type {
   ColumnManagerPanelProps,
 } from "./hooks/useColumnManager";
 
-// Type guard
 export { isGroupColumn } from "./types";

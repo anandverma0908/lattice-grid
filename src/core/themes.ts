@@ -1,18 +1,4 @@
-// =============================================================================
-//  @lattice-grid-lib/core — Design Token System
-//
-//  Tokens are CSS custom properties injected onto the grid root element.
-//  Consumers can override any token by:
-//    1. Passing theme="dark" (preset)
-//    2. Passing theme={{ '--vg-accent': '#e11d48' }} (partial override)
-//    3. Passing a full GridTokens map (complete custom theme)
-// =============================================================================
-
 import type { GridTokens, ThemePreset } from '../types';
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  BASE TOKENS  (shared defaults — override per-theme below)
-// ─────────────────────────────────────────────────────────────────────────────
 
 const BASE: GridTokens = {
   '--vg-font':         "'DM Sans', 'Segoe UI', system-ui, sans-serif",
@@ -37,13 +23,8 @@ const BASE: GridTokens = {
   '--vg-scrollbar-width': '6px',
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  THEME PRESETS
-// ─────────────────────────────────────────────────────────────────────────────
-
 export const GRID_THEMES: Record<ThemePreset, GridTokens> = {
 
-  // ── Light ──────────────────────────────────────────────────────────────────
   light: {
     ...BASE,
     '--vg-bg':                '#ffffff',
@@ -90,7 +71,6 @@ export const GRID_THEMES: Record<ThemePreset, GridTokens> = {
     '--vg-drag-indicator':    '#2563eb',
   },
 
-  // ── Dark ───────────────────────────────────────────────────────────────────
   dark: {
     ...BASE,
     '--vg-bg':                '#0d1117',
@@ -137,7 +117,6 @@ export const GRID_THEMES: Record<ThemePreset, GridTokens> = {
     '--vg-drag-indicator':    '#3b82f6',
   },
 
-  // ── Ocean ──────────────────────────────────────────────────────────────────
   ocean: {
     ...BASE,
     '--vg-bg':                '#081425',
@@ -184,7 +163,6 @@ export const GRID_THEMES: Record<ThemePreset, GridTokens> = {
     '--vg-drag-indicator':    '#0e9eff',
   },
 
-  // ── Forest ─────────────────────────────────────────────────────────────────
   forest: {
     ...BASE,
     '--vg-bg':                '#0a140c',
@@ -231,7 +209,6 @@ export const GRID_THEMES: Record<ThemePreset, GridTokens> = {
     '--vg-drag-indicator':    '#4ade80',
   },
 
-  // ── Sunset ─────────────────────────────────────────────────────────────────
   sunset: {
     ...BASE,
     '--vg-bg':                '#160a04',
@@ -279,14 +256,6 @@ export const GRID_THEMES: Record<ThemePreset, GridTokens> = {
   },
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  TOKEN RESOLVER
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Resolves a theme prop (preset name or partial token map) into a full
- * GridTokens map ready to be injected as inline CSS variables.
- */
 export function resolveTokens(
   theme: ThemePreset | GridTokens | undefined,
 ): GridTokens {
@@ -294,13 +263,9 @@ export function resolveTokens(
   if (typeof theme === 'string') {
     return GRID_THEMES[theme] ?? GRID_THEMES.light;
   }
-  // Partial override: merge on top of light preset
   return { ...GRID_THEMES.light, ...theme };
 }
 
-/**
- * Converts a GridTokens map to a React `style` prop object.
- */
 export function tokensToStyle(tokens: GridTokens): Record<string, string> {
   return tokens as Record<string, string>;
 }

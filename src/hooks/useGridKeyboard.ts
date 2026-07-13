@@ -1,9 +1,3 @@
-// =============================================================================
-//  @lattice-grid-lib/core — useGridKeyboard
-//
-//  AG Grid-style keyboard interaction model with roving-tabindex focus.
-// =============================================================================
-
 import { useCallback, useMemo, useReducer } from "react";
 import { clamp, isInteractiveTarget, isSameFocusTarget } from "./keyboardUtils";
 import type {

@@ -1,39 +1,21 @@
-// =============================================================================
-//  @lattice-grid-lib/core — useGridExport
-//
-//  Export visible grid data to CSV or JSON.
-//  Respects the current visible column set and sort order.
-//
-//  Usage:
-//    const exporter = useGridExport({ data: sortedData, columns: visibleLeaves });
-//    <button onClick={() => exporter.exportCSV('inventory.csv')}>Export CSV</button>
-// =============================================================================
-
 import { useCallback } from 'react';
 import type { ResolvedColumn } from '../types';
 
 export interface UseGridExportOptions<TData> {
-  /** The data to export (should already be sorted/filtered as displayed) */
   data: TData[];
-  /** The visible resolved columns to include */
   columns: ResolvedColumn<TData>[];
 }
 
 export interface UseGridExportReturn {
-  /** Download a CSV file */
   exportCSV: (filename?: string) => void;
-  /** Download a JSON file */
   exportJSON: (filename?: string) => void;
-  /** Get the raw CSV string without downloading */
   getCSVString: () => string;
-  /** Get the raw JSON string without downloading */
   getJSONString: () => string;
 }
 
 function escapeCsvCell(value: unknown): string {
   if (value == null) return '';
   const str = String(value);
-  // Wrap in quotes if it contains comma, newline, or double-quote
   if (str.includes(',') || str.includes('\n') || str.includes('"')) {
     return `"${str.replace(/"/g, '""')}"`;
   }

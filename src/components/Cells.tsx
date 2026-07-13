@@ -1,12 +1,13 @@
-// =============================================================================
-//  @lattice-grid-lib/core — DataCell / GroupHeaderCell / EmptyState
-// =============================================================================
-
 import { memo, type CSSProperties, type ReactNode } from "react";
 import type { GroupColumnDef, ResolvedColumn } from "../types";
 import { useGridContext } from "../core/GridContext";
 
-// Inject shimmer keyframes once at module load — no runtime overhead per cell.
+function omitBackground(style?: CSSProperties): CSSProperties {
+  if (!style) return {};
+  const { background: _background, backgroundColor: _backgroundColor, ...rest } = style;
+  return rest;
+}
+
 if (typeof document !== "undefined") {
   const id = "vg-shimmer-keyframes";
   if (!document.getElementById(id)) {
@@ -18,10 +19,6 @@ if (typeof document !== "undefined") {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  DATA CELL
-// ─────────────────────────────────────────────────────────────────────────────
-
 interface DataCellProps {
   column: ResolvedColumn;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,11 +26,8 @@ interface DataCellProps {
   rowIndex: number;
   colIndex: number;
   style: CSSProperties;
-  /** Pass true for cells in the pinned overlay layer. */
   pinned?: boolean;
-  /** True while the grid is scrolling — deferred cells show loadingCell instead. */
   isScrolling?: boolean;
-  /** Custom placeholder rendered in deferred cells during scroll. */
   loadingCell?: ReactNode;
   active?: boolean;
   focusable?: boolean;
@@ -71,7 +65,6 @@ function dataCellEqual(
   );
 }
 
-// Default shimmer shown in deferred cells while scrolling.
 function ShimmerPlaceholder() {
   return (
     <div
@@ -108,8 +101,6 @@ export const DataCell = memo(function DataCell({
 }: DataCellProps) {
   const { styles, classNames } = useGridContext();
 
-  // Deferred rendering: while scrolling, replace slow custom cells with a
-  // lightweight placeholder so the main thread stays unblocked.
   if (isScrolling && column.deferRender && column.renderCell) {
     return (
       <div
@@ -156,19 +147,8 @@ export const DataCell = memo(function DataCell({
         ? "flex-end"
         : "flex-start";
 
-  // Strip background from cell/column styles so the row-level background
-  // (which is selection-aware via rowBg in LatticeGrid) is not overridden.
-  const rawCellStyle = pinned ? styles.pinnedCell : styles.cell;
-  const {
-    background: _cbg,
-    backgroundColor: _cbgc,
-    ...cellOverrides
-  } = rawCellStyle ?? {};
-  const {
-    background: _bg,
-    backgroundColor: _bgc,
-    ...colCellStyle
-  } = column.cellStyle ?? {};
+  const cellOverrides = omitBackground(pinned ? styles.pinnedCell : styles.cell);
+  const colCellStyle = omitBackground(column.cellStyle);
 
   return (
     <div

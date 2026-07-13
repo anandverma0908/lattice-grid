@@ -1,13 +1,7 @@
-// =============================================================================
-//  @lattice-grid-lib/core — Virtualiser unit tests
-// =============================================================================
-
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useVirtualRows, useVirtualCols, buildColumnOffsets } from '../hooks/useVirtualizer';
 import type { ResolvedColumn } from '../types';
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
 
 function makeCol(id: string, width: number): ResolvedColumn {
   return {
@@ -17,8 +11,6 @@ function makeCol(id: string, width: number): ResolvedColumn {
     rowGroup: false, rowGroupIndex: null, align: 'left',
   };
 }
-
-// ─── useVirtualRows ────────────────────────────────────────────────────────────
 
 describe('useVirtualRows', () => {
   it('renders nothing when rowCount is 0', () => {
@@ -44,8 +36,6 @@ describe('useVirtualRows', () => {
   });
 
   it('advances startIndex when scrolled past overscan region', () => {
-    // ROW_HEIGHT = 36, OVERSCAN = 16 → first visible at scroll 36*10 = 360
-    // startIndex = max(0, 10 - 16) = 0
     const { result } = renderHook(() =>
       useVirtualRows({ rowCount: 500, rowHeight: 36, scrollTop: 360, viewportHeight: 400 }),
     );
@@ -66,8 +56,6 @@ describe('useVirtualRows', () => {
     expect(result.current.offsetY).toBe(result.current.startIndex * 36);
   });
 });
-
-// ─── useVirtualCols ────────────────────────────────────────────────────────────
 
 describe('useVirtualCols', () => {
   const columns = [
@@ -90,7 +78,6 @@ describe('useVirtualCols', () => {
     const { result } = renderHook(() =>
       useVirtualCols({ columns, scrollLeft: 0, viewportWidth: 400 }),
     );
-    // 100+120+80+150+100+90 = 640
     expect(result.current.totalWidth).toBe(640);
   });
 
@@ -109,18 +96,12 @@ describe('useVirtualCols', () => {
   });
 
   it('advances startIndex when scrolled past first columns', () => {
-    // columns[0]=0-100, columns[1]=100-220, columns[2]=220-300
-    // scroll=210 → first visible = col[1] → with OVERSCAN(2) startIndex = max(0,1-2) = 0
     const { result } = renderHook(() =>
       useVirtualCols({ columns, scrollLeft: 210, viewportWidth: 100 }),
     );
-    // first visible col at scrollLeft=210 is col[1] (offset 100, right edge 220 > 210)
-    // startIndex = max(0, 1 - 2) = 0
     expect(result.current.startIndex).toBe(0);
   });
 });
-
-// ─── buildColumnOffsets ─────────────────────────────────────────────────────────
 
 describe('buildColumnOffsets', () => {
   it('returns correct cumulative offsets', () => {

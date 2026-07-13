@@ -1,22 +1,3 @@
-// =============================================================================
-//  @lattice-grid-lib/core — useGridEngine
-//
-//  Pure state machine. Zero rendering dependencies.
-//  Manages: column order, widths, pinning, visibility, sorting.
-//
-//  Design decisions:
-//    • Column state is normalised into a flat map keyed by id.
-//      The display order is a separate array of ids.
-//      This makes O(1) updates for resize/pin/hide without
-//      scanning the full column tree.
-//
-//    • Column defs are never mutated — initial values are derived
-//      once in a lazy initialiser and remain stable.
-//
-//    • All actions return new state via functional setState to be
-//      safe under React 18 concurrent mode.
-// =============================================================================
-
 import { useCallback, useMemo, useReducer } from 'react';
 import type {
   ColumnDef,
@@ -33,17 +14,9 @@ import type {
 } from '../types';
 import { isGroupColumn } from '../types';
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
-
 const DEFAULT_COL_WIDTH = 120;
 const MIN_COL_WIDTH = 40;
 const MAX_COL_WIDTH = Infinity;
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  INTERNAL STATE SHAPE
-// ─────────────────────────────────────────────────────────────────────────────
 
 interface ColRecord {
   width: number;
@@ -54,19 +27,11 @@ interface ColRecord {
 }
 
 interface EngineInternalState {
-  /** Flat map of id → mutable runtime state */
   colMap: Record<string, ColRecord>;
-  /** Current display order — array of leaf column ids */
   colOrder: string[];
-  /** Sort state */
   sort: SortState;
-  /** Row grouping state */
   rowGrouping: RowGroupingState;
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  REDUCER ACTIONS
-// ─────────────────────────────────────────────────────────────────────────────
 
 type Action =
   | { type: 'RESIZE'; id: string; delta: number }
@@ -145,7 +110,6 @@ function reducer(state: EngineInternalState, action: Action): EngineInternalStat
       const toIdx = arr.indexOf(targetId);
       if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return state;
       arr.splice(fromIdx, 1);
-      // Re-calculate target index after removal
       const newToIdx = arr.indexOf(targetId);
       arr.splice(newToIdx, 0, sourceId);
       return { ...state, colOrder: arr };
@@ -166,7 +130,6 @@ function reducer(state: EngineInternalState, action: Action): EngineInternalStat
       if (sort.columnId === action.id) {
         if (sort.direction === 'asc') direction = 'desc';
         else {
-          // third click → clear sort
           return { ...state, sort: { columnId: null, direction: 'asc' } };
         }
       }
@@ -227,10 +190,6 @@ function reducer(state: EngineInternalState, action: Action): EngineInternalStat
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  COLUMN TREE FLATTENING
-// ─────────────────────────────────────────────────────────────────────────────
-
 interface FlattenResult<TData> {
   leaves: Array<LeafColumnDef<TData> & { groupId: string | null; defIndex: number }>;
   groups: GroupColumnDef<TData>[];
@@ -253,10 +212,6 @@ function flattenColumnDefs<TData>(defs: ColumnDef<TData>[]): FlattenResult<TData
 
   return { leaves, groups };
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  INITIAL STATE BUILDER
-// ─────────────────────────────────────────────────────────────────────────────
 
 function buildInitialState<TData>(
   defs: ColumnDef<TData>[],
@@ -290,35 +245,16 @@ function buildInitialState<TData>(
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  PUBLIC HOOK
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * useGridEngine
- *
- * The headless core of LatticeGrid. Can be used independently to build
- * custom grid UIs.
- *
- * @example
- * const engine = useGridEngine(columns);
- * // engine.visibleColumns, engine.sortState, engine.toggleSort(id), ...
- */
 export function useGridEngine<TData>(
   columnDefs: ColumnDef<TData>[],
   initialGroupBy: string[] = [],
 ): GridEngine<TData> {
-  // Compute reducer initial state only once at mount.
-  // colMap / colOrder are mutable runtime state managed by the reducer.
   const { initial } = useMemo(() => {
     const result = buildInitialState(columnDefs, initialGroupBy);
     return { initial: result.internal };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally only on mount — preserves user's resize/reorder/hide state
+  }, []);
 
-  // Keep leaves and groups always in sync with the latest columnDefs.
-  // This ensures renderCell, renderHeader, label etc. are never stale
-  // even when the caller passes updated column definitions.
   const { leaves, groups } = useMemo(
     () => flattenColumnDefs(columnDefs),
     [columnDefs],
@@ -326,11 +262,15 @@ export function useGridEngine<TData>(
 
   const [state, dispatch] = useReducer(reducer, initial);
 
-  // ── Resolved columns ──
-  // Merge static leaf def with runtime col state, in current order.
+  const leavesById = useMemo(() => {
+    const map = new Map<string, FlattenResult<TData>['leaves'][number]>();
+    for (const leaf of leaves) map.set(leaf.id, leaf);
+    return map;
+  }, [leaves]);
+
   const orderedColumns = useMemo((): ResolvedColumn<TData>[] => {
     return state.colOrder.flatMap((id) => {
-      const leaf = leaves.find((l) => l.id === id);
+      const leaf = leavesById.get(id);
       const record = state.colMap[id];
       if (!leaf || !record) return [];
 
@@ -365,7 +305,7 @@ export function useGridEngine<TData>(
       } as ResolvedColumn<TData>;
       return [resolved];
     });
-  }, [state.colOrder, state.colMap, leaves]);
+  }, [state.colOrder, state.colMap, leavesById]);
 
   const visibleColumns = useMemo(
     () => orderedColumns.filter((c) => !c.hidden),
@@ -402,7 +342,6 @@ export function useGridEngine<TData>(
     [scrollableColumns],
   );
 
-  // ── Actions ──
   const resizeColumn: GridEngineActions['resizeColumn'] = useCallback(
     (id, delta) => dispatch({ type: 'RESIZE', id, delta }),
     [],
@@ -473,7 +412,6 @@ export function useGridEngine<TData>(
     [initial],
   );
 
-  // ── Composed state ──
   const engineState: GridEngineState<TData> = {
     orderedColumns,
     visibleColumns,

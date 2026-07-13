@@ -1,38 +1,5 @@
-// =============================================================================
-//  @lattice-grid-lib/core — useColumnDrag  (pointer-event based reorder)
-//
-//  Performance design:
-//    • Only `draggingId` and `overTargetId` live in React state.
-//    • Ghost left / indicator left+display are applied via direct DOM style
-//      mutations inside a requestAnimationFrame loop — zero React re-renders.
-//    • `useLayoutEffect` sets the ghost's initial left position after the DOM
-//      mounts but before the browser paints, so there's never a flash frame.
-//    • `overTargetId` only triggers a React update when it actually changes
-//      (cursor crosses a column midpoint), not on every pixel of movement.
-//
-//  Root-cause fix for the "ghost snaps back on column boundary":
-//    The old code stored `ghostLeft` in React state. Every time `overTargetId`
-//    changed, React re-rendered and reset el.style.left to the stale state
-//    value. Fix: `left` / `display` are NEVER in the React-managed style of
-//    ghost or indicator. The hook owns them entirely via DOM mutations.
-//
-//  Drop constraints:
-//    • Non-draggable columns are hard barriers — you cannot reorder across them.
-//    • Group membership is respected — grouped columns stay within their group.
-//    • Pin-section respected — scrollable columns stay in scrollable, pinned in pinned.
-//
-//  No DOM registry:
-//    • getColumnViewportBounds() is provided by the caller (LatticeGrid) and
-//      computes positions mathematically from engine state, so ALL columns are
-//      valid drop targets regardless of the virtual column window.
-// =============================================================================
-
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { PinSide } from '../types';
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Types
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface DragColumnMeta {
   id: string;
@@ -44,29 +11,13 @@ export interface DragColumnMeta {
 export interface UseColumnDragOptions {
   onMoveColumnBefore: (sourceId: string, targetId: string) => void;
   onMoveColumnToEnd?: (sourceId: string) => void;
-  /** Current visible columns in order — used for zone computation. */
   columns: DragColumnMeta[];
-  /**
-   * Returns viewport {left, right} of any column.
-   * Computed mathematically in LatticeGrid so it works for ALL columns,
-   * including those outside the current virtual render window.
-   */
   getColumnViewportBounds: (columnId: string) => { left: number; right: number } | null;
 }
 
 export interface ColumnDragState {
   draggingId: string | null;
-  /**
-   * The column whose header is highlighted as the drop destination.
-   * - non-null + insertBefore=true  → cursor is in the left half of this column  (will insert before it)
-   * - non-null + insertBefore=false → cursor is past all zone columns (will insert after this one)
-   * - null → no valid drop target in zone
-   *
-   * NOTE: ghostLeft is intentionally NOT here. It lives in a mutable ref so
-   * React never touches el.style.left after the initial useLayoutEffect sets it.
-   */
   overTargetId: string | null;
-  /** Which side of the highlighted header to accent. true = left edge, false = right edge. */
   insertBefore: boolean;
 }
 
@@ -75,26 +26,13 @@ export interface ColumnDragHandlers {
     onPointerDown: (e: React.PointerEvent) => void;
   };
   dragState: ColumnDragState;
-  /** Attach to ghost div — hook will write left directly, bypassing React. */
   registerGhost: (el: HTMLDivElement | null) => void;
-  /**
-   * Returns true (and clears the flag) if a real drag just ended.
-   * Call in click/sort handlers to swallow the post-drag synthetic click.
-   */
   consumeDragEnd: () => boolean;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-//  Constants
-// ─────────────────────────────────────────────────────────────────────────────
-
-const DRAG_THRESHOLD = 4; // px before drag activates
+const DRAG_THRESHOLD = 4;
 
 const IDLE: ColumnDragState = { draggingId: null, overTargetId: null, insertBefore: true };
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Hook
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function useColumnDrag({
   onMoveColumnBefore,
@@ -104,33 +42,21 @@ export function useColumnDrag({
 }: UseColumnDragOptions): ColumnDragHandlers {
   const [dragState, setDragState] = useState<ColumnDragState>(IDLE);
 
-  // Always-current refs — avoids stale closures inside pointer handlers.
   const columnsRef = useRef<DragColumnMeta[]>(columns);
   columnsRef.current = columns;
   const getBoundsRef = useRef(getColumnViewportBounds);
   getBoundsRef.current = getColumnViewportBounds;
 
-  // DOM ref for the ghost element — left position written directly (no React re-render).
   const ghostElRef = useRef<HTMLDivElement | null>(null);
 
-  // Set to true when a real drag (threshold crossed) completes. Cleared by
-  // consumeDragEnd() so the post-drag click does not trigger sort/click handlers.
   const wasDraggingRef = useRef(false);
 
-  // Initial ghost left set when drag activates — read by useLayoutEffect.
   const initialGhostLeftRef = useRef(0);
 
-  // Register callbacks — called by React when elements mount/unmount.
   const registerGhost = useCallback((el: HTMLDivElement | null) => {
     ghostElRef.current = el;
   }, []);
 
-
-  // ── Initial ghost position via layout effect ────────────────────────────────
-  // Fires after React mounts the ghost div (refs are set) but before browser
-  // paints. This is the ONE place we set ghost left from state → DOM. All
-  // subsequent moves are handled by the pointer handler via direct DOM writes,
-  // so React re-renders caused by overTargetId changes never reset the position.
   useLayoutEffect(() => {
     if (dragState.draggingId && ghostElRef.current) {
       ghostElRef.current.style.left = `${initialGhostLeftRef.current}px`;

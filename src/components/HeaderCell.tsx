@@ -1,10 +1,3 @@
-// =============================================================================
-//  @lattice-grid-lib/core — HeaderCell  v2.1
-//
-//  FIX 3: renderHeader now receives (column, engine) as second argument.
-//  Custom headers can show sort state, fire actions, render filter inputs, etc.
-// =============================================================================
-
 import React, { memo, useState, type CSSProperties } from "react";
 import type { ResolvedColumn } from "../types";
 import { useGridContext } from "../core/GridContext";
@@ -136,8 +129,6 @@ export const HeaderCell = memo(function HeaderCell({
   const borderLeft = isFirst ? "1px solid var(--vg-border)" : undefined;
   const borderRight = "1px solid var(--vg-border)";
 
-  // Use inset box-shadow for the drop indicator so it doesn't affect layout size.
-  // Left accent = will insert before this column; right accent = will insert after (end of zone).
   const dropShadow = isDropTarget
     ? dropInsertBefore
       ? "inset 3px 0 0 var(--vg-accent)"
@@ -198,7 +189,6 @@ export const HeaderCell = memo(function HeaderCell({
         ...(column.groupId ? styles.groupHeaderCell : {}),
       }}
     >
-      {/* Label — FIX 3: renderHeader receives (column, engine) */}
       <span
         style={{
           flex: 1,
@@ -213,7 +203,6 @@ export const HeaderCell = memo(function HeaderCell({
           : column.label}
       </span>
 
-      {/* Sort indicator */}
       {canSort &&
         (() => {
           if (isSorted) {
@@ -238,7 +227,6 @@ export const HeaderCell = memo(function HeaderCell({
           );
         })()}
 
-      {/* Hide button */}
       {canHide && (
         <span
           data-vg-hide=""
@@ -279,7 +267,6 @@ export const HeaderCell = memo(function HeaderCell({
         </span>
       )}
 
-      {/* Resize handle */}
       {showResizeHandle && canResize && (
         <div
           aria-hidden="true"
