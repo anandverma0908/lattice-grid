@@ -208,7 +208,11 @@ export const DataCell = memo(function DataCell({
         textOverflow: "ellipsis",
         outline: active ? "2px solid var(--vg-accent)" : "none",
         outlineOffset: -2,
-        zIndex: active ? Math.max(Number(style.zIndex ?? 0), 7) : style.zIndex,
+        zIndex: active
+          ? pinned
+            ? Math.max(Number(style.zIndex ?? 0), 6)
+            : Math.min(Math.max(Number(style.zIndex ?? 0), 3), 4)
+          : style.zIndex,
         ...colCellStyle,
         ...cellOverrides,
       }}
