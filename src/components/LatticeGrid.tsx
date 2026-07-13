@@ -1293,7 +1293,7 @@ function LatticeGridInner<TData = unknown>({
       keyboard.focusedCell?.rowIndex === rowIndex &&
       keyboard.focusedCell.colIndex === 0;
     const isFocusable =
-      isActive || (!keyboard.focusedCell && rowIndex === 0);
+      isActive || (!keyboard.focusedTarget && rowIndex === 0);
 
     return (
       <div
@@ -1419,7 +1419,7 @@ function LatticeGridInner<TData = unknown>({
         keyboard.focusedCell.colIndex === colIndex;
       const isFocusable =
         isActive ||
-        (!keyboard.focusedCell && rowIndex === 0 && colIndex === 0);
+        (!keyboard.focusedTarget && rowIndex === 0 && colIndex === 0);
       cells.push(
         <DataCell
           key={`ds-${col.id}`}
@@ -1468,7 +1468,7 @@ function LatticeGridInner<TData = unknown>({
               keyboard.focusedCell.colIndex === colIndex;
             const isFocusable =
               isActive ||
-              (!keyboard.focusedCell && rowIndex === 0 && colIndex === 0);
+              (!keyboard.focusedTarget && rowIndex === 0 && colIndex === 0);
             return (
               <DataCell
                 key={`ps-l-${col.id}`}
@@ -1516,7 +1516,7 @@ function LatticeGridInner<TData = unknown>({
               keyboard.focusedCell.colIndex === colIndex;
             const isFocusable =
               isActive ||
-              (!keyboard.focusedCell && rowIndex === 0 && colIndex === 0);
+              (!keyboard.focusedTarget && rowIndex === 0 && colIndex === 0);
             return (
               <DataCell
                 key={`ps-r-${col.id}`}

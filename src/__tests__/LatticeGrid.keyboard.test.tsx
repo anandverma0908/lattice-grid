@@ -143,6 +143,22 @@ describe("LatticeGrid keyboard accessibility", () => {
     );
   });
 
+  it("does not mark an unrelated column-0 data cell as focusable when a header is clicked", async () => {
+    renderGrid();
+    const nameHeader = screen.getByRole("columnheader", { name: "Name" });
+
+    await focusElement(nameHeader);
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute("data-grid-header-cell", "1"),
+    );
+
+    const renderedCells = await cells();
+    const firstColumnCell = renderedCells.find(
+      (cell) => cell.getAttribute("data-grid-cell") === "0:0",
+    )!;
+    expect(firstColumnCell).toHaveAttribute("tabindex", "-1");
+  });
+
   it("supports document-edge and page navigation keys", async () => {
     renderGrid();
     const firstCell = (await cells())[0]!;
